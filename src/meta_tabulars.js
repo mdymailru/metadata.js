@@ -61,7 +61,7 @@ function TabularSection(name, owner){
 }
 
 TabularSection.prototype.toString = function(){
-	return "Табличная часть " + this._owner._manager.class_name + "." + this._name
+	return "Табличная часть " + this._owner.class_name + "." + this._name
 };
 
 /**
@@ -95,11 +95,16 @@ TabularSection.prototype.count = function(){return this._obj.length};
  *     ts.clear();
  *
  */
-TabularSection.prototype.clear = function(silent){
+TabularSection.prototype.clear = function(silent, selection){
 
-	for(var i in this._obj)
-		delete this._obj[i];
-	this._obj.length = 0;
+  if(!selection){
+    this._obj.length = 0;
+  }
+  else{
+    this.find_rows(selection).forEach(function (row) {
+      row._row._owner.del(row.row-1, true);
+    })
+  }
 
 	if(!silent && !this._owner._data._silent)
 		Object.getNotifier(this._owner).notify({
@@ -116,18 +121,18 @@ TabularSection.prototype.clear = function(silent){
  * @param val {Number|TabularSectionRow} - индекс или строка табчасти
  */
 TabularSection.prototype.del = function(val, silent){
-	
+
 	var index, _obj = this._obj;
-	
+
 	if(typeof val == "undefined")
 		return;
-		
+
 	else if(typeof val == "number")
 		index = val;
-		
+
 	else if(_obj[val.row-1]._row === val)
 		index = val.row-1;
-		
+
 	else{
 		for(var i in _obj)
 			if(_obj[i]._row === val){
@@ -183,7 +188,7 @@ TabularSection.prototype.find_rows = function(selection, callback){
 			return callback.call(t, row._row);
 		} : null;
 
-	return $p._find_rows.call(t, t._obj, selection, cb);
+	return $p.utils._find_rows.call(t, t._obj, selection, cb);
 
 };
 
@@ -194,9 +199,12 @@ TabularSection.prototype.find_rows = function(selection, callback){
  * @param rowid2 {number}
  */
 TabularSection.prototype.swap = function(rowid1, rowid2){
-	var tmp = this._obj[rowid1];
+
+	var row1 = this._obj[rowid1];
 	this._obj[rowid1] = this._obj[rowid2];
-	this._obj[rowid2] = tmp;
+	this._obj[rowid2] = row1;
+  this._obj[rowid1].row = rowid1 + 1;
+  this._obj[rowid2].row = rowid2 + 1;
 
 	if(!this._owner._data._silent)
 		Object.getNotifier(this._owner).notify({
@@ -239,9 +247,9 @@ TabularSection.prototype.add = function(attr, silent){
 		});
 
 	attr = null;
-	
+
 	this._owner._data._modified = true;
-	
+
 	return row;
 };
 
@@ -457,7 +465,7 @@ TabularSection.prototype.toJSON = function () {
 
 /**
  * ### Aбстрактная строка табличной части
- * 
+ *
  * @class TabularSectionRow
  * @constructor
  * @param owner {TabularSection} - табличная часть, которой принадлежит строка
@@ -535,8 +543,10 @@ TabularSectionRow.prototype._setter = function (f, v) {
 	if(this._obj[f] == v || (!v && this._obj[f] == $p.utils.blank.guid))
 		return;
 
-	if(!this._owner._owner._data._silent)
-		Object.getNotifier(this._owner._owner).notify({
+	var _owner = this._owner._owner;
+
+	if(!_owner._data._silent)
+		Object.getNotifier(_owner).notify({
 			type: 'row',
 			row: this,
 			tabular: this._owner._name,
@@ -550,13 +560,13 @@ TabularSectionRow.prototype._setter = function (f, v) {
 		if(this._metadata.fields[f].choice_type.path.length == 2)
 			prop = this[this._metadata.fields[f].choice_type.path[1]];
 		else
-			prop = this._owner._owner[this._metadata.fields[f].choice_type.path[0]];
+			prop = _owner[this._metadata.fields[f].choice_type.path[0]];
 		if(prop && prop.type)
 			v = $p.utils.fetch_type(v, prop.type);
 	}
 
 	DataObj.prototype.__setter.call(this, f, v);
-	this._owner._owner._data._modified = true;
+  _owner._data._modified = true;
 
 };
 

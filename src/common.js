@@ -8,6 +8,8 @@
  */
 
 
+;"use strict";
+
 /**
  * Фреймворк добавляет в прототипы _Object_ и _Number_<br />
  * несколько методов - синтаксический сахар для _наследования_ и работы со _свойствами_
@@ -66,8 +68,9 @@ Object.defineProperties(Object.prototype, {
 			if(include && include.length){
 				for(i = 0; i<include.length; i++){
 					f = include[i];
-					if(exclude && exclude.indexOf(f)!=-1)
-						continue;
+					if(exclude && exclude.indexOf(f)!=-1){
+            continue;
+          }
 					// копируем в dst свойства src, кроме тех, которые унаследованы от Object
 					if((typeof tobj[f] == "undefined") || (tobj[f] != src[f]))
 						this[f] = src[f];
@@ -90,34 +93,54 @@ Object.defineProperties(Object.prototype, {
 	 * @method _clone
 	 * @for Object
 	 * @param src {Object|Array} - исходный объект
-	 * @param [exclude_propertyes] {Object} - объект, в ключах которого имена свойств, которые не надо копировать
+	 * @param [exclude] {Array} - объект, в ключах которого имена свойств, которые не надо копировать
 	 * @returns {Object|Array} - копия объекта
 	 */
 	_clone: {
-		value: function() {
+		value: function(exclude, str_date) {
 			if(!this || "object" !== typeof this)
 				return this;
 			var p, v, c = "function" === typeof this.pop ? [] : {};
 			for(p in this){
+        if(exclude && exclude.indexOf(p)!=-1){
+          continue;
+        }
 				if (this.hasOwnProperty(p)){
 					v = this[p];
 					if(v){
-						if("function" === typeof v || v instanceof DataObj || v instanceof DataManager || v instanceof Date)
-							c[p] = v;
-
-						else if("object" === typeof v)
-							c[p] = v._clone();
-
-						else
-							c[p] = v;
-					} else
-						c[p] = v;
+						if("function" === typeof v || v instanceof DataObj || v instanceof DataManager){
+              c[p] = v;
+            }
+						else if("object" === typeof v){
+              if(v instanceof Date){
+                c[p] = str_date ? v.toJSON() : v;
+              }
+              else{
+                c[p] = v._clone(exclude, str_date);
+              }
+            }
+						else{
+              c[p] = v;
+            }
+					}
+					else{
+            c[p] = v;
+          }
 				}
 			}
 			return c;
 		}
 	}
 });
+
+/**
+ * Отбрасываем часовой пояс при сериализации даты
+ * @method toJSON
+ * @for Date
+ */
+Date.prototype.toJSON = function () {
+  return $p.moment(this).format($p.moment._masks.iso);
+}
 
 /**
  * Метод округления в прототип числа
@@ -141,102 +164,6 @@ if(!Number.prototype.pad)
 		while (s.length < (size || 2)) {s = "0" + s;}
 		return s;
 	};
-
-/**
- * Полифил обсервера и нотифаера
- */
-if(!Object.observe && !Object.unobserve && !Object.getNotifier){
-	Object.prototype.__define({
-
-		/**
-		 * Подключает наблюдателя
-		 * @method observe
-		 * @for Object
-		 */
-		observe: {
-			value: function(target, observer) {
-				if(!target._observers)
-					target.__define({
-						_observers: {
-							value: [],
-							enumerable: false
-						},
-						_notis: {
-							value: [],
-							enumerable: false
-						}
-					});
-				target._observers.push(observer);
-			},
-			enumerable: false
-		},
-
-		/**
-		 * Отключает наблюдателя
-		 * @method unobserve
-		 * @for Object
-		 */
-		unobserve: {
-			value: function(target, observer) {
-
-				if(!target._observers)
-					return;
-
-				if(!observer)
-					target._observers.length = 0;
-
-				for(var i=0; i<target._observers.length; i++){
-					if(target._observers[i]===observer){
-						target._observers.splice(i, 1);
-						break;
-					}
-				}
-			},
-			enumerable: false
-		},
-
-		/**
-		 * Возвращает объект нотификатора
-		 * @method getNotifier
-		 * @for Object
-		 */
-		getNotifier: {
-			value: function(target) {
-				var timer;
-				return {
-					notify: function (noti) {
-
-						if(!target._observers || !noti)
-							return;
-
-						if(!noti.object)
-							noti.object = target;
-
-						target._notis.push(noti);
-						noti = null;
-
-						if(timer)
-							clearTimeout(timer);
-
-						timer = setTimeout(function () {
-							//TODO: свернуть массив оповещений перед отправкой
-							if(target._notis.length){
-								target._observers.forEach(function (observer) {
-									observer(target._notis);
-								});
-								target._notis.length = 0;
-							}
-							timer = false;
-
-						}, 4);
-					}
-				}
-			},
-			enumerable: false
-		}
-
-	});
-}
 
 
 /**
@@ -465,7 +392,7 @@ function MetaEngine() {
 						for(j in selection){
 
 							sel = selection[j];
-							is_obj = typeof(sel) === "object";
+							is_obj = sel && typeof(sel) === "object";
 
 							// пропускаем служебные свойства
 							if(j.substr(0, 1) == "_")
@@ -482,7 +409,7 @@ function MetaEngine() {
 								ok = sel.some(function (element) {
 									var key = Object.keys(element)[0];
 									if(element[key].hasOwnProperty("like"))
-										return o[key] && o[key].toLowerCase().indexOf(element[key].like.toLowerCase())!=-1;
+										return typeof o[key] == "string" && o[key].toLowerCase().indexOf(element[key].like.toLowerCase())!=-1;
 									else
 										return $p.utils.is_equal(o[key], element[key]);
 								});
@@ -565,7 +492,7 @@ function MetaEngine() {
 						top = selection._top;
 						delete selection._top;
 					}else
-						top = 300;
+						top = 1000;
 				}
 
 				for(var i in arr){
@@ -621,14 +548,20 @@ function MetaEngine() {
 		 */
 		off: {
 			value: function (id) {
+			  if(arguments.length == 2){
+          id = arguments[1];
+        }
 				if(typeof id == "function" && id._evnts){
 					id._evnts.forEach(function (id) {
 						$p.eve.detachEvent(id);
 					});
-				}else if(!id)
-					$p.eve.detachAllEvents();
-				else
-					$p.eve.detachEvent(id);
+				}
+				else if(!id){
+          $p.eve.detachAllEvents();
+        }
+				else{
+          $p.eve.detachEvent(id);
+        }
 			}
 		},
 
@@ -640,9 +573,7 @@ function MetaEngine() {
 		 */
 		record_log: {
 			value: function (err) {
-				if($p.ireg && $p.ireg.$log)
-					$p.ireg.$log.record(err);
-				console.log(err);
+				$p.ireg && $p.ireg.log && $p.ireg.log.record(err);
 			}
 		},
 
@@ -843,7 +774,7 @@ function MetaEngine() {
 				 * @static
 				 */
 					function ChartsOfAccounts(){
-					this.toString = function(){return $p.msg.meta_charts_of_accounts_mgr};
+					this.toString = function(){return $p.msg.meta_cacc_mgr};
 				})
 		},
 
@@ -865,7 +796,7 @@ function MetaEngine() {
 				 * @static
 				 */
 					function ChartsOfCharacteristics(){
-					this.toString = function(){return $p.msg.meta_charts_of_characteristic_mgr};
+					this.toString = function(){return $p.msg.meta_cch_mgr};
 				})
 		},
 
@@ -941,6 +872,18 @@ function MetaEngine() {
 			value: LogManager
 		},
 
+		MetaObjManager: {
+			value: MetaObjManager
+		},
+
+		MetaFieldManager: {
+			value: MetaFieldManager
+		},
+
+		SchemeSettingsManager: {
+			value: SchemeSettingsManager
+		},
+
 		AccumRegManager: {
 			value: AccumRegManager
 		},
@@ -1010,6 +953,7 @@ function MetaEngine() {
 		}
 
 	});
+
 }
 
 /**
@@ -1158,21 +1102,24 @@ function Utils() {
 	 * @return {*}
 	 */
 	this.fetch_type = function(str, mtype){
-		var v = str;
-		if(mtype.is_ref)
-			v = this.fix_guid(str);
-		else if(mtype.date_part)
-			v = this.fix_date(str, true);
-		else if(mtype["digits"])
-			v = this.fix_number(str, true);
-		else if(mtype.types[0]=="boolean")
-			v = this.fix_boolean(str);
-		return v;
+		if (mtype.is_ref){
+			return this.fix_guid(str);
+		}
+		if (mtype.date_part){
+			return this.fix_date(str, true)
+		}
+		if (mtype["digits"]){
+			return this.fix_number(str, true)
+		}
+		if (mtype.types && mtype.types[0] == "boolean"){
+			return this.fix_boolean(str)
+		}
+		return str;
 	};
 
 	/**
 	 * ### Добавляет days дней к дате
-	 *
+	 * и сбрасывает время в 00:00:00
 	 * @method date_add_day
 	 * @param date {Date} - исходная дата
 	 * @param days {Number} - число дней, добавляемых к дате (может быть отрицательным)
@@ -1285,10 +1232,16 @@ function Utils() {
 			reader.onerror = function(err){
 				reject(err);
 			};
-			if(type == "data_url")
-				reader.readAsDataURL(blob);
-			else
-				reader.readAsText(blob);
+			switch (type) {
+        case "array" :
+          reader.readAsArrayBuffer(blob);
+          break;
+        case "data_url":
+          reader.readAsDataURL(blob);
+          break;
+        default:
+          reader.readAsText(blob);
+      }
 		});
 
 	};
@@ -1353,16 +1306,16 @@ function Ajax() {
 					if(typeof auth == "object" && auth.username && auth.hasOwnProperty("password")){
 						username = auth.username;
 						password = auth.password;
-						
+
 					}else{
 						if($p.ajax.username && $p.ajax.authorized){
 							username = $p.ajax.username;
 							password = $p.aes.Ctr.decrypt($p.ajax.password);
-							
+
 						}else{
 							username = $p.wsql.get_user_param("user_name");
 							password = $p.aes.Ctr.decrypt($p.wsql.get_user_param("user_pwd"));
-							
+
 							if(!username && $p.job_prm && $p.job_prm.guest_name){
 								username = $p.job_prm.guest_name;
 								password = $p.aes.Ctr.decrypt($p.job_prm.guest_pwd);
@@ -1574,19 +1527,23 @@ function Ajax() {
 			return wnd_print;
 		}
 
-		if(!method || (typeof method == "string" && method.toLowerCase().indexOf("post")!=-1))
-			return this.post_ex(url,
-				typeof post_data == "object" ? JSON.stringify(post_data) : post_data,
-				true,
-				function(xhr){
-					xhr.responseType = "blob";
-				})
-				.then(show_blob);
-		else
-			return this.get_ex(url, true, function(xhr){
-					xhr.responseType = "blob";
-				})
-				.then(show_blob);
+    if(url instanceof Blob){
+      Promise.resolve(show_blob({response: url}));
+    }
+    else if(!method || (typeof method == "string" && method.toLowerCase().indexOf("post")!=-1))
+      return this.post_ex(url,
+        typeof post_data == "object" ? JSON.stringify(post_data) : post_data,
+        true,
+        function(xhr){
+          xhr.responseType = "blob";
+        })
+        .then(show_blob);
+    else{
+      return this.get_ex(url, true, function(xhr){
+        xhr.responseType = "blob";
+      })
+        .then(show_blob);
+    }
 	};
 
 	/**

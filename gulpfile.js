@@ -10,21 +10,18 @@ const gulp = require('gulp'),
 	csso = require('gulp-csso'),
 	concat = require('gulp-concat'),
 	uglify = require('gulp-uglify'),
-	shell = require('gulp-shell'),
 	rename = require('gulp-rename'),
 	resources = require('./src/utils/resource-concat.js'),
 	path = require('path'),
+  strip = require('gulp-strip-comments'),
 	umd = require('gulp-umd'),
-	replace = require('gulp-replace'),
-	babel = require('gulp-babel');
-	// async = require('gulp-async-func-runner'),
-	// gulpfile = require('gulp-file'),
-	// async = require('gulp-replace-async');
+  wrap = require('gulp-wrap'),
+	replace = require('gulp-replace');
 
 module.exports = gulp;
 
 // данные файла package.json
-var package_data = JSON.parse(require('fs').readFileSync('package.json', 'utf8'));
+var package_data = require('./package.json');
 
 
 gulp.task('prebuild', function(){
@@ -37,65 +34,25 @@ gulp.task('prebuild', function(){
 
 });
 
-
-gulp.task('build-metadata', function () {
-	return gulp.src([
-		'./node_modules/moment/locale/ru.js',
-		'./src/common.js',
-		'./src/wsql.js',
-		'./src/common.ui.js',
-		'./src/pouchdb.js',
-		'./src/i18n.ru.js',
-		'./src/meta_meta.js',
-		'./src/meta_mngrs.js',
-		'./src/meta_objs.js',
-		'./src/meta_tabulars.js',
-		'./src/meta_rest.js',
-		'./src/meta_pouchdb.js',
-		'./src/widgets/*.js',
-		'./src/import_export.js',
-		'./src/events.js',
-		'./src/events.ui.js',
-		'./src/geocoding.js',
-		'./src/reporting.js',
-		'./data/merged_data.js',
-		'./lib/xml_to_json.js',
-		'./lib/filesaver.js',
-		'./lib/aes/aes.js',
-		'./lib/rubles/rubles.js',
-		'./lib/daterangepicker/daterangepicker.js',
-		'./lib/mime-types/db.js'
-	])
-		.pipe(concat('metadata.js'))
-		.pipe(umd({
-			exports: function(file) {
-				return '$p';
-			},
-			namespace: function(file) {
-				return '$p';
-			},
-			template: path.join(__dirname, './src/utils/umd-exports-oknosoft.js')
-		}))
-		.pipe(replace(/PACKAGE_VERSION/g, package_data.version))
-		.pipe(replace(/PACKAGE_BUILT_TIME/g, new Date().toISOString().split("T")[0]))
-		.pipe(gulp.dest('./lib'))
-		.pipe(gulp.dest('./dist'))
-		.pipe(rename('metadata.min.js'))
-		.pipe(uglify({
-			preserveComments: function (node, comment) {
-				return comment.value[0]=="!";
-			}
-		}))
-		.pipe(gulp.dest('./lib'))
-		.pipe(gulp.dest('./dist'));
+gulp.task('dhtmlx-ui', function () {
+  return gulp.src([
+    './src/widgets/*.js',
+    './src/reporting.js',
+    './src/import_export.js',
+    './data/merged_data.js',
+  ])
+    .pipe(concat('dhtmlx-widgets.js'))
+    .pipe(wrap({ src: './packages/metadata-dhtmlx/src/wrapper.js'}))
+    .pipe(gulp.dest('./packages/metadata-dhtmlx/src'))
 });
 
+
 gulp.task('injected_main', function(){
-   return gulp.src(['./data/*.xml'])
-	   .pipe(resources('merged_data.js', function (data) {
-		   return new Buffer('$p.injected_data._mixin(' + JSON.stringify(data) + ');');
-	   }))
-	   .pipe(gulp.dest('./data'));
+    return gulp.src(['./data/*.xml'])
+    .pipe(resources('merged_data.js', function (data) {
+        return new Buffer('$p.injected_data._mixin(' + JSON.stringify(data) + ');');
+	}))
+	.pipe(gulp.dest('./data'));
 });
 
 // dhtmlxscheduler
@@ -138,12 +95,12 @@ gulp.task('build-dhtmlx', function(){
 		'./src/dhtmlx/sources/dhtmlxMenu/codebase/ext/dhtmlxmenu_ext.js',
 		'./src/dhtmlx/sources/dhtmlxMenu/codebase/ext/dhtmlxmenu_effects.js',
 		'./src/dhtmlx/patches/dhtmlxtoolbar.js',
-			//'./src/dhtmlx/sources/dhtmlxEditor/codebase/dhtmlxeditor.js',
-			//'./src/dhtmlx/patches/dhtmlxeditor_ext.js',
-			//'./src/dhtmlx/sources/dhtmlxChart/codebase/dhtmlxchart.js',
+		//'./src/dhtmlx/sources/dhtmlxEditor/codebase/dhtmlxeditor.js',
+		//'./src/dhtmlx/patches/dhtmlxeditor_ext.js',
+		//'./src/dhtmlx/sources/dhtmlxChart/codebase/dhtmlxchart.js',
 		'./src/dhtmlx/sources/dhtmlxDataView/codebase/dhtmlxdataview.js',
-			//'./src/dhtmlx/sources/dhtmlxList/codebase/dhtmlxlist.js',
-			//'./src/dhtmlx/sources/dhtmlxTree/codebase/dhtmlxtree.js',
+		//'./src/dhtmlx/sources/dhtmlxList/codebase/dhtmlxlist.js',
+		//'./src/dhtmlx/sources/dhtmlxTree/codebase/dhtmlxtree.js',
 		//'./src/dhtmlx/patches/dhtmlxtree.js',
 		//'./src/dhtmlx/sources/dhtmlxTree/codebase/ext/dhtmlxtree_dragin.js',
 		//'./src/dhtmlx/sources/dhtmlxTree/codebase/ext/dhtmlxtree_ed.js',
@@ -154,10 +111,10 @@ gulp.task('build-dhtmlx', function(){
 		'./src/dhtmlx/sources/dhtmlxGrid/codebase/ext/dhtmlxgrid_drag.js',
 		'./src/dhtmlx/sources/dhtmlxGrid/codebase/ext/dhtmlxgrid_export.js',
 		'./src/dhtmlx/sources/dhtmlxGrid/codebase/ext/dhtmlxgrid_filter.js',
-		'./src/dhtmlx/sources/dhtmlxGrid/codebase/ext/dhtmlxgrid_nxml.js',
 		'./src/dhtmlx/sources/dhtmlxGrid/codebase/ext/dhtmlxgrid_selection.js',
 		'./src/dhtmlx/sources/dhtmlxGrid/codebase/ext/dhtmlxgrid_srnd.js',
-			//'./src/dhtmlx/sources/dhtmlxGrid/codebase/ext/dhtmlxgrid_start.js',
+		//'./src/dhtmlx/sources/dhtmlxGrid/codebase/ext/dhtmlxgrid_nxml.js',
+		//'./src/dhtmlx/sources/dhtmlxGrid/codebase/ext/dhtmlxgrid_start.js',
 		'./src/dhtmlx/sources/dhtmlxGrid/codebase/ext/dhtmlxgrid_validation.js',
 		'./src/dhtmlx/sources/dhtmlxGrid/codebase/excells/dhtmlxgrid_excell_tree.js',
 		'./src/dhtmlx/sources/dhtmlxGrid/codebase/excells/dhtmlxgrid_excell_link.js',
@@ -204,6 +161,7 @@ gulp.task('build-dhtmlx', function(){
 
 		])
 		.pipe(concat('dhtmlx_debug.js'))
+    //.pipe(strip({safe: true}))
 		.pipe(gulp.dest('./lib'))
 		.pipe(rename('dhtmlx.min.js'))
 		.pipe(uglify({
@@ -212,7 +170,7 @@ gulp.task('build-dhtmlx', function(){
 			}
 		}))
 		.pipe(gulp.dest('./lib'))
-		.pipe(gulp.dest('./dist'));
+		.pipe(gulp.dest('./packages/metadata-dhtmlx'));
 });
 
 // dhtmlx css
@@ -223,7 +181,7 @@ gulp.task('css-dhtmlx', function () {
 		])
 		.pipe(base64())
 		.pipe(csso())
-		.pipe(gulp.dest('./dist'));
+		.pipe(gulp.dest('./packages/metadata-dhtmlx'));
 });
 
 gulp.task('css-dhtmlx-images', function () {
@@ -240,143 +198,42 @@ gulp.task('css-metadata', function () {
 	return gulp.src([
 		'./src/dhtmlx/patches/dhtmlxtreegrid_property.css',
 		'./src/dhtmlx/dhtmlxTreeView/codebase/skins/dhtmlxtreeview_dhx_terrace.css',
-		'./lib/daterangepicker/daterangepicker.css',
+		//'./lib/daterangepicker/daterangepicker.css',
 		'./src/css/upzp20.css'
 			//'./src/css/options.css'
 		])
 		.pipe(base64())
 		.pipe(concat('metadata.css'))
-		.pipe(gulp.dest('./lib'))
-		.pipe(csso())
-		.pipe(gulp.dest('./dist'));
+		//.pipe(gulp.dest('./lib'))
+    .pipe(csso())
+		.pipe(gulp.dest('./packages/metadata-dhtmlx'));
 });
 
-// Сборка сервера для Node.js
-gulp.task('build-metadata-core', function(){
+// metadata css
+gulp.task('css-icon1c', function () {
 	return gulp.src([
-		'./src/common.js',
-		'./src/wsql.js',
-		'./src/i18n.ru.js',
-		'./src/pouchdb.js',
-		'./src/meta_meta.js',
-		'./src/meta_mngrs.js',
-		'./src/meta_tabulars.js',
-		'./src/meta_objs.js',
-		'./src/meta_rest.js',
-		'./src/meta_pouchdb.js',
-		'./src/events.js',
-		'./lib/aes/aes.js'
+		'./src/css/icon1c.css'
+		//'./src/css/options.css'
 	])
-		.pipe(concat('metadata.core.js'))
-		.pipe(umd({
-			exports: function(file) {
-				return '$p';
-			},
-			namespace: function(file) {
-				return '$p';
-			},
-			template: path.join(__dirname, './src/utils/umd-exports-oknosoft.js')
-		}))
-		.pipe(replace(/PACKAGE_VERSION/g, package_data.version))
-		.pipe(replace(/PACKAGE_BUILT_TIME/g, new Date().toISOString().split("T")[0]))
-		.pipe(gulp.dest('./lib'))
-		.pipe(gulp.dest('./dist'))
-		.pipe(rename('metadata.core.min.js'))
-		.pipe(uglify({
-			preserveComments: "license"
-		}))
-		.pipe(gulp.dest('./dist'));
+		.pipe(base64())
+		.pipe(concat('icon1c.min.css'))
+		//.pipe(csso())
+		.pipe(gulp.dest('./src/css'));
 });
 
-// metadata-core
-gulp.task('build--core', function(){
 
-	package_data = JSON.parse(require('fs').readFileSync('./packages/metadata-core/package.json', 'utf8'));
-
-	return gulp.src([
-		'./packages/metadata-core/src/utils.js',
-		'./packages/metadata-core/src/i18n.ru.js',
-		'./packages/metadata-core/src/jobprm.js',
-		'./packages/metadata-core/src/wsql.js',
-		'./packages/metadata-core/src/mngrs.js',
-		'./packages/metadata-core/src/objs.js',
-		'./packages/metadata-core/src/tabulars.js',
-		'./packages/metadata-core/src/meta.js',
-		'./packages/metadata-core/lib/aes.js',
-		'./packages/metadata-core/src/common.js'
-	])
-
-		.pipe(replace(/PACKAGE_VERSION/g, package_data.version))
-		.pipe(replace(/PACKAGE_BUILT_TIME/g, new Date().toISOString().split("T")[0]))
-
-		.pipe(concat('index.js'))
-
-		.pipe(babel({
-			presets: ['es2015'],
-			plugins: ["transform-async-to-generator"],
-			compact: false,
-			//comments: false
-		}))
-
-		.pipe(gulp.dest('./packages/metadata-core'))
-});
-
-// metadata-redux
-gulp.task('build--abstract-adapter', function(){
-
-	return gulp.src([
-		'./packages/metadata-abstract-adapter/src/abstract_adapter.js'
-	])
-
-		.pipe(babel({
-			presets: ['es2015'],
-			compact: false,
-			//comments: false
-		}))
-
-		.pipe(rename('index.js'))
-		.pipe(gulp.dest('./packages/metadata-abstract-adapter'))
-
-});
-
-// metadata-pouchdb
-gulp.task('build--adapter-pouchdb', function(){
-
-	return gulp.src([
-		'./packages/metadata-pouchdb/src/pouchdb_adapter.js'
-	])
-
-		.pipe(babel({
-			presets: ['es2015'],
-			compact: false,
-			//comments: false
-		}))
-
-		.pipe(rename('index.js'))
-		.pipe(gulp.dest('./packages/metadata-pouchdb'))
-
-});
-
-// metadata-redux
-gulp.task('build--redux', function(){
-
-	return gulp.src([
-		'./packages/metadata-redux/src/actions.js',
-		'./packages/metadata-redux/src/events.js'
-	])
-
-		.pipe(concat('index.js'))
-		.pipe(gulp.dest('./packages/metadata-redux'))
-
-		.pipe(babel({
-			presets: ['es2015'],
-			compact: false,
-			//comments: false
-		}))
-
-		.pipe(gulp.dest('./packages/metadata-redux'))
-
-});
+const metadataCoreFiles = [
+    './packages/metadata-core/src/utils.js',
+    './packages/metadata-core/src/i18n.ru.js',
+    './packages/metadata-core/src/jobprm.js',
+    './packages/metadata-core/src/wsql.js',
+    './packages/metadata-core/src/mngrs.js',
+    './packages/metadata-core/src/objs.js',
+    './packages/metadata-core/src/tabulars.js',
+    './packages/metadata-core/src/meta.js',
+    './packages/metadata-core/lib/aes.js',
+    './packages/metadata-core/src/common.js'
+];
 
 
 // Ресурсы для codres
@@ -425,4 +282,16 @@ gulp.task('build-codex', function(){
 		.pipe(concat('main.js'))
 		.pipe(gulp.dest('./examples/codex/js'));
 });
+
+gulp.task('paper-minify', () => {
+	return gulp.src(['./lib/paper-core.js'])
+		.pipe(rename('paper-core.min.js'))
+		.pipe(uglify({
+			preserveComments: function (node, comment) {
+				return comment.value[0]=="!";
+			}
+		}))
+		.pipe(gulp.dest('./lib'))
+	}
+);
 

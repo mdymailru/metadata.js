@@ -31,15 +31,12 @@
 function DataObj(attr, manager) {
 
 	var tmp,
-		_ts_ = {},
-		_obj = {},
-		_data = {
-			_is_new: !(this instanceof EnumObj)
-		};
+		_ts_ = {};
 
 	// если объект с такой ссылкой уже есть в базе, возвращаем его и не создаём нового
-	if(!(manager instanceof DataProcessorsManager) && !(manager instanceof EnumManager))
-		tmp = manager.get(attr, false, true);
+	if(!(manager instanceof DataProcessorsManager) && !(manager instanceof EnumManager)){
+    tmp = manager.get(attr, false, true);
+  }
 
 	if(tmp){
 		attr = null;
@@ -47,29 +44,7 @@ function DataObj(attr, manager) {
 	}
 
 
-	if(manager instanceof EnumManager)
-		_obj.ref = attr.name;
-
-	else if(!(manager instanceof RegisterManager)){
-		_obj.ref = $p.utils.fix_guid(attr);
-
-	}else
-		_obj.ref = manager.get_ref(attr);
-
-
 	this.__define({
-
-		/**
-		 * ### Фактическое хранилище данных объекта
-		 * Оно же, запись в таблице объекта локальной базы данных
-		 * @property _obj
-		 * @type Object
-		 * @final
-		 */
-		_obj: {
-			value: _obj,
-			configurable: true
-		},
 
 		/**
 		 * Хранилище ссылок на табличные части - не сохраняется в базе данных
@@ -95,162 +70,42 @@ function DataObj(attr, manager) {
 			value : manager
 		},
 
-		/**
-		 * Пользовательские данные - аналог `AdditionalProperties` _Дополнительные cвойства_ в 1С
-		 * @property _data
-		 * @type DataManager
-		 * @final
-		 */
-		_data: {
-			value : _data,
-			configurable: true
-		}
+    /**
+     * Пользовательские данные - аналог `AdditionalProperties` _Дополнительные cвойства_ в 1С
+     * @property _data
+     * @type DataManager
+     * @final
+     */
+    _data: {
+		  value: {
+        _is_new: !(this instanceof EnumObj)
+      }
+    },
+
+    /**
+     * ### Фактическое хранилище данных объекта
+     * Оно же, запись в таблице объекта локальной базы данных
+     * @property _obj
+     * @type Object
+     * @final
+     */
+    _obj: {
+		  value: {
+        ref: manager instanceof EnumManager ? attr.name : (manager instanceof RegisterManager ? manager.get_ref(attr) : $p.utils.fix_guid(attr))
+      }
+    }
 
 	});
 
 
 	if(manager.alatable && manager.push){
-		manager.alatable.push(_obj);
-		manager.push(this, _obj.ref);
+		manager.alatable.push(this._obj);
+		manager.push(this, this._obj.ref);
 	}
 
 	attr = null;
 
 }
-
-
-DataObj.prototype._getter = function (f) {
-
-	var mf = this._metadata.fields[f].type,
-		res = this._obj ? this._obj[f] : "",
-		mgr, ref;
-
-	if(f == "type" && typeof res == "object")
-		return res;
-
-	else if(f == "ref"){
-		return res;
-
-	}else if(mf.is_ref){
-		if(mf.digits && typeof res === "number")
-			return res;
-
-		if(mf.hasOwnProperty("str_len") && !$p.utils.is_guid(res))
-			return res;
-
-		if(mgr = _md.value_mgr(this._obj, f, mf)){
-			if($p.utils.is_data_mgr(mgr))
-				return mgr.get(res, false);
-			else
-				return $p.utils.fetch_type(res, mgr);
-		}
-
-		if(res){
-			console.log([f, mf, this._obj]);
-			return null;
-		}
-
-	}else if(mf.date_part)
-		return $p.utils.fix_date(this._obj[f], true);
-
-	else if(mf.digits)
-		return $p.utils.fix_number(this._obj[f], !mf.hasOwnProperty("str_len"));
-
-	else if(mf.types[0]=="boolean")
-		return $p.utils.fix_boolean(this._obj[f]);
-
-	else
-		return this._obj[f] || "";
-};
-
-DataObj.prototype.__setter = function (f, v) {
-
-	var mf = this._metadata.fields[f].type,
-		mgr;
-
-	if(f == "type" && v.types)
-		this._obj[f] = v;
-
-	else if(f == "ref")
-
-		this._obj[f] = $p.utils.fix_guid(v);
-
-	else if(mf.is_ref){
-
-		if(mf.digits && typeof v == "number" || mf.hasOwnProperty("str_len") && typeof v == "string" && !$p.utils.is_guid(v)){
-			this._obj[f] = v;
-
-		}else {
-			this._obj[f] = $p.utils.fix_guid(v);
-
-			mgr = _md.value_mgr(this._obj, f, mf, false, v);
-
-			if(mgr){
-				if(mgr instanceof EnumManager){
-					if(typeof v == "string")
-						this._obj[f] = v;
-
-					else if(!v)
-						this._obj[f] = "";
-
-					else if(typeof v == "object")
-						this._obj[f] = v.ref || v.name || "";
-
-				}else if(v && v.presentation){
-					if(v.type && !(v instanceof DataObj))
-						delete v.type;
-					mgr.create(v);
-				}else if(!$p.utils.is_data_mgr(mgr))
-					this._obj[f] = $p.utils.fetch_type(v, mgr);
-			}else{
-				if(typeof v != "object")
-					this._obj[f] = v;
-			}
-		}
-
-	}else if(mf.date_part)
-		this._obj[f] = $p.utils.fix_date(v, true);
-
-	else if(mf.digits)
-		this._obj[f] = $p.utils.fix_number(v, !mf.hasOwnProperty("str_len"));
-
-	else if(mf.types[0]=="boolean")
-		this._obj[f] = $p.utils.fix_boolean(v);
-
-	else
-		this._obj[f] = v;
-	
-};
-
-DataObj.prototype.__notify = function (f) {
-	if(!this._data._silent)
-		Object.getNotifier(this).notify({
-			type: 'update',
-			name: f,
-			oldValue: this._obj[f]
-		});
-};
-
-DataObj.prototype._setter = function (f, v) {
-
-	if(this._obj[f] == v)
-		return;
-	
-	this.__notify(f);
-	this.__setter(f, v);
-	this._data._modified = true;
-
-};
-
-DataObj.prototype._getter_ts = function (f) {
-	return this._ts_(f);
-};
-
-DataObj.prototype._setter_ts = function (f, v) {
-	var ts = this._ts_(f);
-	if(ts instanceof TabularSection && Array.isArray(v))
-		ts.load(v);
-};
 
 DataObj.prototype.__define({
 
@@ -283,6 +138,163 @@ DataObj.prototype.__define({
 			return this.presentation;
 		}
 	},
+
+  __notify: {
+	  value: function (f) {
+      if(!this._data._silent)
+        Object.getNotifier(this).notify({
+          type: 'update',
+          name: f,
+          oldValue: this._obj[f]
+        });
+    }
+  },
+
+  _getter: {
+	  value: function (f) {
+
+      var mf = this._metadata.fields[f].type,
+        res = this._obj ? this._obj[f] : "",
+        mgr, ref;
+
+      if(f == "type" && typeof res == "object")
+        return res;
+
+      else if(f == "ref"){
+        return res;
+
+      }else if(mf.is_ref){
+
+        if(mf.digits && typeof res === "number"){
+          return res;
+        }
+
+        if(mf.hasOwnProperty("str_len") && !$p.utils.is_guid(res)){
+          return res;
+        }
+
+        if(mgr = _md.value_mgr(this._obj, f, mf)){
+          if($p.utils.is_data_mgr(mgr)){
+            return mgr.get(res, false);
+          }
+          else{
+            return $p.utils.fetch_type(res, mgr);
+          }
+        }
+
+        if(res){
+          console.log([f, mf, this._obj]);
+          return null;
+        }
+
+      }else if(mf.date_part)
+        return $p.utils.fix_date(this._obj[f], true);
+
+      else if(mf.digits)
+        return $p.utils.fix_number(this._obj[f], !mf.hasOwnProperty("str_len"));
+
+      else if(mf.types[0]=="boolean")
+        return $p.utils.fix_boolean(this._obj[f]);
+
+      else
+        return this._obj[f] || "";
+    }
+  },
+
+  _getter_ts: {
+	  value: function (f) {return this._ts_(f)}
+  },
+
+  _setter: {
+	  value: function (f, v) {
+
+      if(this._obj[f] == v)
+        return;
+
+      !this._data._loading && this.__notify(f);
+      this.__setter(f, v);
+      this._data._modified = true;
+
+    }
+  },
+
+  __setter: {
+    value: function (f, v) {
+
+      const mf = this._metadata.fields[f].type;
+
+      if(f == "type" && v.types)
+        this._obj[f] = v;
+
+      else if(f == "ref")
+
+        this._obj[f] = $p.utils.fix_guid(v);
+
+      else if(mf.is_ref){
+
+        if(mf.digits && typeof v == "number" || mf.hasOwnProperty("str_len") && typeof v == "string" && !$p.utils.is_guid(v)){
+          this._obj[f] = v;
+        }
+        else if(typeof v == "boolean" && mf.types.indexOf("boolean") != -1){
+          this._obj[f] = v;
+        }
+        else {
+          this._obj[f] = $p.utils.fix_guid(v);
+
+          const mgr = _md.value_mgr(this._obj, f, mf, false, v);
+
+          if(mgr){
+            if(mgr instanceof EnumManager){
+              if(typeof v == "string"){
+                this._obj[f] = v;
+              }
+              else if(!v){
+                this._obj[f] = "";
+              }
+              else if(typeof v == "object"){
+                this._obj[f] = v.ref || v.name || "";
+              }
+            }
+            else if(v && v.presentation){
+              if(v.type && !(v instanceof DataObj)){
+                delete v.type;
+              }
+              mgr.create(v);
+            }
+            else if(!$p.utils.is_data_mgr(mgr)){
+              this._obj[f] = $p.utils.fetch_type(v, mgr);
+            }
+          }
+          else{
+            if(typeof v != "object"){
+              this._obj[f] = v;
+            }
+          }
+        }
+      }
+      else if(mf.date_part){
+        this._obj[f] = $p.utils.fix_date(v, true);
+      }
+      else if(mf.digits){
+        this._obj[f] = $p.utils.fix_number(v, !mf.hasOwnProperty("str_len"));
+      }
+      else if(mf.types[0]=="boolean"){
+        this._obj[f] = $p.utils.fix_boolean(v);
+      }
+      else{
+        this._obj[f] = v;
+      }
+
+    }
+  },
+
+  _setter_ts: {
+	  value: function (f, v) {
+      var ts = this._ts_(f);
+      ts instanceof TabularSection && Array.isArray(v) && ts.load(v);
+    }
+  },
+
 
 	/**
 	 * Метаданные текущего объекта
@@ -337,9 +349,12 @@ DataObj.prototype.__define({
 	 */
 	_set_loaded: {
 		value: function(ref){
-			this._manager.push(this, ref);
-			this._data._modified = false;
-			this._data._is_new = false;
+		  const {_manager, _data} = this;
+			_manager.push(this, ref);
+			_data._modified = false;
+			_data._is_new = false;
+			delete _data._loading;
+			return this;
 		}
 	},
 
@@ -354,6 +369,7 @@ DataObj.prototype.__define({
 			this._obj._deleted = !!deleted;
 			this.save();
 			this.__notify('_deleted');
+			return this;
 		}
 	},
 
@@ -364,11 +380,22 @@ DataObj.prototype.__define({
 	 * @type String
 	 */
 	ref: {
-		get : function(){ return this._obj.ref},
-		set : function(v){ this._obj.ref = $p.utils.fix_guid(v)},
+		get : function(){return this._obj.ref},
+		set : function(v){this._obj.ref = $p.utils.fix_guid(v)},
 		enumerable : true,
 		configurable: true
 	},
+
+  /**
+   * ### Имя типа этого объекта
+   * @property class_name
+   * @type String
+   * @final
+   */
+  class_name: {
+    get : function(){return this._manager.class_name},
+    set : function(v){this._obj.class_name = v}
+  },
 
 	/**
 	 * Проверяет, является ли ссылка объекта пустой
@@ -399,22 +426,22 @@ DataObj.prototype.__define({
 				}.bind(this);
 
 			if(this.ref == $p.utils.blank.guid){
-				if(this instanceof CatObj)
-					this.id = "000000000";
-				else
-					this.number_doc = "000000000";
-
+				if(this instanceof CatObj){
+          this.id = "000000000";
+        }
+				else{
+          this.number_doc = "000000000";
+        }
 				return Promise.resolve(this);
-
-			}else{
+			}
+			else{
 				if(this._manager.cachable && this._manager.cachable != "e1cib"){
 					return $p.wsql.pouch.load_obj(this).then(reset_modified);
-
-				} else
-					return _rest.load_obj(this).then(reset_modified);
+				}
+				else{
+          return _rest.load_obj(this).then(reset_modified);
+        }
 			}
-
-
 		}
 	},
 
@@ -428,12 +455,6 @@ DataObj.prototype.__define({
 			var f, obj = this._obj;
 
 			this._manager.unload_obj(this.ref);
-
-			if(this._observers)
-				this._observers.length = 0;
-
-			if(this._notis)
-				this._notis.length = 0;
 
 			for(f in this._metadata.tabular_sections)
 				this[f].clear(true);
@@ -473,53 +494,48 @@ DataObj.prototype.__define({
 			}
 
 			var saver,
-				
-				before_save_res = this._manager.handle_event(this, "before_save"),
-				
-				reset_modified = function () {
 
+				before_save_res = this._manager.handle_event(this, "before_save"),
+
+				reset_modified = function () {
 					if(before_save_res === false){
 						if(this instanceof DocObj && typeof initial_posted == "boolean" && this.posted != initial_posted){
 							this.posted = initial_posted;
 						}
-					}else
-						this._data._modified = false;
-
+					}else{
+            this._data._modified = false;
+          }
 					saver = null;
 					before_save_res = null;
 					reset_modified = null;
-					
 					return this;
 				}.bind(this);
 
 			// если процедуры перед записью завершились неудачно или запись выполнена нестандартным способом - не продолжаем
 			if(before_save_res === false){
 				return Promise.reject(reset_modified());
-
-			}else if(before_save_res instanceof Promise || typeof before_save_res === "object" && before_save_res.then){
-				// если пользовательский обработчик перед записью вернул промис, его и возвращаем
+			}
+      // если пользовательский обработчик перед записью вернул промис, его и возвращаем
+			else if(before_save_res instanceof Promise || typeof before_save_res === "object" && before_save_res.then){
 				return before_save_res.then(reset_modified);
 			}
 
-
 			// для объектов с иерархией установим пустого родителя, если иной не указан
-			if(this._metadata.hierarchical && !this._obj.parent)
-				this._obj.parent = $p.utils.blank.guid;
+			if(this._metadata.hierarchical && !this._obj.parent){
+        this._obj.parent = $p.utils.blank.guid;
+      }
 
 			// для документов, контролируем заполненность даты
 			if(this instanceof DocObj || this instanceof TaskObj || this instanceof BusinessProcessObj){
-
 				if($p.utils.blank.date == this.date)
 					this.date = new Date();
-
 				if(!this.number_doc)
 					this.new_number_doc();
-
-			}else{
+			}
+			else{
 				if(!this.id)
 					this.new_number_doc();
 			}
-
 
 			// если не указаны обязательные реквизиты
 			if($p.msg && $p.msg.show_msg){
@@ -533,17 +549,16 @@ DataObj.prototype.__define({
 						before_save_res = false;
 						return Promise.reject(reset_modified());
 					}
-				}	
+				}
 			}
 
 			// в зависимости от типа кеширования, получаем saver
 			if(this._manager.cachable && this._manager.cachable != "e1cib"){
 				saver = $p.wsql.pouch.save_obj;
-
-			} else {
-				// запрос к серверу 1C по сети
+			}
+      // запрос к серверу 1C по сети
+			else {
 				saver = _rest.save_irest;
-
 			}
 
 			// Сохраняем во внешней базе
@@ -576,7 +591,7 @@ DataObj.prototype.__define({
 	/**
 	 * ### Сохраняет объект или файл во вложении
 	 * Вызывает {{#crossLink "DataManager/save_attachment:method"}} одноименный метод менеджера {{/crossLink}} и передаёт ссылку на себя в качестве контекста
-	 * 
+	 *
 	 * @method save_attachment
 	 * @for DataObj
 	 * @param att_id {String} - идентификатор (имя) вложения
@@ -601,7 +616,7 @@ DataObj.prototype.__define({
 	/**
 	 * ### Удаляет присоединенный объект или файл
 	 * Вызывает одноименный метод менеджера и передаёт ссылку на себя в качестве контекста
-	 * 
+	 *
 	 * @method delete_attachment
 	 * @for DataObj
 	 * @param att_id {String} - идентификатор (имя) вложения
@@ -634,9 +649,9 @@ DataObj.prototype.__define({
 			else{
 				this._data._silent = true;
 				setTimeout(function () {
-					this._data._silent = false;	
+					this._data._silent = false;
 				}.bind(this));
-			}			
+			}
 		}
 	},
 
@@ -656,7 +671,7 @@ DataObj.prototype.__define({
 			return this._manager.print(this, model, wnd);
 		}
 	}
-	
+
 });
 
 
@@ -670,76 +685,122 @@ DataObj.prototype.__define({
  */
 function CatObj(attr, manager) {
 
-	var _presentation = "";
-
 	// выполняем конструктор родительского объекта
 	CatObj.superclass.constructor.call(this, attr, manager);
 
-	/**
-	 * Представление объекта
-	 * @property presentation
-	 * @for CatObj
-	 * @type String
-	 */
-	this.__define('presentation', {
-		get : function(){
-
-			if(this.name || this.id){
-				// return this._metadata.obj_presentation || this._metadata.synonym + " " + this.name || this.id;
-				return this.name || this.id || this._metadata.obj_presentation || this._metadata.synonym;
-			}else
-				return _presentation;
-
-		},
-		set : function(v){
-			if(v)
-				_presentation = String(v);
-		}
-	});
-
-	if(attr && typeof attr == "object"){
+	if(this._data && attr && typeof attr == "object"){
+	  this._data._silent = true;
 		if(attr._not_set_loaded){
 			delete attr._not_set_loaded;
 			this._mixin(attr);
-		}else{
+		}
+		else{
 			this._mixin(attr);
 			if(!$p.utils.is_empty_guid(this.ref) && (attr.id || attr.name))
 				this._set_loaded(this.ref);
 		}
+    this._data._silent = false;
 	}
-
-	attr = null;
 
 }
 CatObj._extend(DataObj);
 
-/**
- * ### Код элемента справочника
- * @property id
- * @type String|Number
- */
-CatObj.prototype.__define('id', {
-	get : function(){ return this._obj.id || ""},
-	set : function(v){
-		this.__notify('id');
-		this._obj.id = v;
-	},
-	enumerable: true
-});
+CatObj.prototype.__define({
 
-/**
- * ### Наименование элемента справочника
- * @property name
- * @type String
- */
-CatObj.prototype.__define('name', {
-	get : function(){ return this._obj.name || ""},
-	set : function(v){
-		this.__notify('name');
-		this._obj.name = String(v);
-	},
-	enumerable: true
-});
+  /**
+   * ### Код элемента справочника
+   * @property id
+   * @type String|Number
+   */
+  id: {
+    get : function(){ return this._obj.id || ""},
+    set : function(v){
+      this.__notify('id');
+      this._obj.id = v;
+    },
+    enumerable: true
+  },
+
+  /**
+   * ### Наименование элемента справочника
+   * @property name
+   * @type String
+   */
+  name: {
+    get : function(){ return this._obj.name || ""},
+    set : function(v){
+      this.__notify('name');
+      this._obj.name = String(v);
+    },
+    enumerable: true
+  },
+
+  /**
+   * Представление объекта
+   * @property presentation
+   * @for CatObj
+   * @type String
+   */
+  presentation: {
+    get : function(){
+      if(this.name || this.id){
+        // return this._metadata.obj_presentation || this._metadata.synonym + " " + this.name || this.id;
+        return this.name || this.id || this._metadata.obj_presentation || this._metadata.synonym;
+      }else{
+        return this._presentation || "";
+      }
+    },
+    set : function(v){
+      if(v){
+        this._presentation = String(v);
+      }
+    }
+  },
+
+  /**
+   * ### В иерархии
+   * Выясняет, находится ли текущий объект в указанной группе
+   *
+   * @param group {Object|Array} - папка или массив папок
+   *
+   */
+  _hierarchy: {
+    value: function (group) {
+      var t = this;
+      if(Array.isArray(group)){
+        return group.some(function (v) {
+          return t._hierarchy(v);
+        });
+      }
+      if(this == group || t.parent == group){
+        return true;
+      }
+      var parent = t.parent;
+      if(parent && !parent.empty()){
+        return parent._hierarchy(group);
+      }
+      return group == $p.utils.blank.guid;
+    }
+  },
+
+  /**
+   * ### Дети
+   * Возвращает массив элементов, находящихся в иерархии текущего
+   */
+  _children: {
+    get: function () {
+      var  t = this, res = [];
+      this._manager.forEach(function (o) {
+        if(o != t && o._hierarchy(t)){
+          res.push(o);
+        }
+      });
+      return res;
+    }
+  }
+
+})
+
 
 
 /**
@@ -769,7 +830,7 @@ function DocObj(attr, manager) {
 			if(this.number_doc)
 				return (this._metadata.obj_presentation || this._metadata.synonym) + ' №' + this.number_doc + " от " + $p.moment(this.date).format($p.moment._masks.ldt);
 			else
-				return _presentation;
+				return _presentation || "";
 
 		},
 		set : function(v){
@@ -778,8 +839,11 @@ function DocObj(attr, manager) {
 		}
 	});
 
-	if(attr && typeof attr == "object")
-		this._mixin(attr);
+	if(attr && typeof attr == "object"){
+    this._data._silent = true;
+    this._mixin(attr);
+    this._data._silent = false;
+  }
 
 	if(!$p.utils.is_empty_guid(this.ref) && attr.number_doc)
 		this._set_loaded(this.ref);
@@ -855,10 +919,16 @@ function DataProcessorObj(attr, manager) {
 	DataProcessorObj.superclass.constructor.call(this, attr, manager);
 
 	var f, cmd = manager.metadata();
-	for(f in cmd.fields)
-		attr[f] = $p.utils.fetch_type("", cmd.fields[f].type);
-	for(f in cmd["tabular_sections"])
-		attr[f] = [];
+	for(f in cmd.fields){
+	  if(!attr[f]){
+      attr[f] = $p.utils.fetch_type("", cmd.fields[f].type);
+    }
+  }
+	for(f in cmd["tabular_sections"]){
+	  if(!attr[f]){
+      attr[f] = [];
+    }
+  }
 
 	this._mixin(attr);
 
@@ -1041,7 +1111,7 @@ RegisterRow.prototype.__define({
 	 * Ключ записи регистра
 	 */
 	ref: {
-		get : function(){ 
+		get : function(){
 			return this._manager.get_ref(this);
 		},
 		enumerable: true

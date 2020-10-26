@@ -54,28 +54,43 @@ function OCombo(attr){
 			t.getButton().style.right = "9px";
 	} else
 		t.getBase().style.marginBottom = "4px";
-	
+
 	if(attr.left)
 		t.getBase().style.left = left + "px";
 
 	this.attachEvent("onChange", function(){
-		if(_obj && _field)
-			_obj[_field] = this.getSelectedValue();
+		if(_obj && _field){
+		  var val = this.getSelectedValue();
+		  if(!val && this.getComboText()){
+        val = this.getOptionByLabel(this.getComboText());
+        if(val){
+          val = val.value;
+        }
+        else{
+          this.setComboText("");
+        }
+      }
+      _obj[_field] = val;
+    }
 	});
 
 	this.attachEvent("onBlur", function(){
-		if(!this.getSelectedValue() && this.getComboText())
-			this.setComboText("");
+		if(!this.getSelectedValue() && this.getComboText()){
+      this.setComboText("");
+    }
 	});
 
 	this.attachEvent("onDynXLS", function (text) {
 
-		if(!_mgr)
-			_mgr = _md.value_mgr(_obj, _field, _meta.type);
-
+	  if(!_meta){
+	    return;
+    }
+		if(!_mgr){
+      _mgr = _md.value_mgr(_obj, _field, _meta.type);
+    }
 		if(_mgr){
 			t.clearAll();
-			(attr.get_option_list || _mgr.get_option_list).call(_mgr, null, get_filter(text))
+			(attr.get_option_list || _mgr.get_option_list).call(_mgr, get_filter(text))
 				.then(function (l) {
 					if(t.addOption){
 						t.addOption(l);
@@ -87,53 +102,67 @@ function OCombo(attr){
 	});
 
 	function get_filter(text){
-		var filter = {_top: 30}, choice;
+		var filter = {_top: 50, _dhtmlx: true};
 
-		if(_mgr && _mgr.metadata().hierarchical && _mgr.metadata().group_hierarchy){
-			if(_meta.choice_groups_elm == "elm")
-				filter.is_folder = false;
-			else if(_meta.choice_groups_elm == "grp" || _field == "parent")
-				filter.is_folder = true;
-		}
+    if(_mgr && _mgr.metadata().hierarchical && _mgr.metadata().group_hierarchy) {
+      if(_meta.choice_groups_elm == 'elm') {
+        filter.is_folder = false;
+      }
+      else if(_meta.choice_groups_elm == 'grp' || _field == 'parent') {
+        filter.is_folder = true;
+      }
+    }
 
-		// для связей параметров выбора, значение берём из объекта
+    // для связей параметров выбора, значение берём из объекта
 		if(_meta.choice_links)
-			_meta.choice_links.forEach(function (choice) {
-				if(choice.name && choice.name[0] == "selection"){
+			_meta.choice_links.forEach(({name, path}) => {
+				if(name && name[0] == "selection"){
 					if(_obj instanceof TabularSectionRow){
-						if(choice.path.length < 2)
-							filter[choice.name[1]] = typeof choice.path[0] == "function" ? choice.path[0] : _obj._owner._owner[choice.path[0]];
-						else
-							filter[choice.name[1]] = _obj[choice.path[1]];
-					}else
-						filter[choice.name[1]] = typeof choice.path[0] == "function" ? choice.path[0] : _obj[choice.path[0]];
+						if(path.length < 2)
+							filter[name[1]] = typeof path[0] == "function" ? path[0] : _obj._owner._owner[path[0]];
+						else{
+							if(name[1] == "owner" && !_mgr.metadata().has_owners){
+								return;
+							}
+							filter[name[1]] = _obj[path[1]];
+						}
+					}else{
+						filter[name[1]] = typeof path[0] == "function" ? path[0] : _obj[path[0]];
+					}
 				}
 			});
 
 		// у параметров выбора, значение живёт внутри отбора
-		if(_meta.choice_params)
-			_meta.choice_params.forEach(function (choice) {
-				
-				var fval = Array.isArray(choice.path) ? {in: choice.path} : choice.path;
-
-				if(!filter[choice.name])
-					filter[choice.name] = fval;
-
-				else if(Array.isArray(filter[choice.name]))
-					filter[choice.name].push(fval);
-
-				else{
-					filter[choice.name] = [filter[choice.name]];
-					filter[choice.name].push(fval);
-				}
-			});
+		if(_meta.choice_params){
+      _meta.choice_params.forEach(({name, path}) => {
+        const fval = Array.isArray(path) ? {in: path} : path;
+        if(!filter[name]) {
+          filter[name] = fval;
+        }
+        else if(Array.isArray(filter[name])) {
+          filter[name].push(fval);
+        }
+        else {
+          filter[name] = [filter[name]];
+          filter[name].push(fval);
+        }
+      });
+    }
 
 		// если в метаданных указано строить список по локальным данным, подмешиваем эту информацию в фильтр
-		if(_meta._option_list_local)
-			filter._local = true;
+    if(_meta._option_list_local) {
+      filter._local = true;
+    }
 
-		if(text)
-			filter.presentation = {like: text};
+    // навешиваем фильтр по подстроке
+    if(text) {
+      filter.presentation = {like: text};
+    }
+
+    // если включен справочник связей параметров - дополнительно фильтруем результат
+    if(attr.property && attr.property.filter_params_links) {
+      attr.property.filter_params_links(filter, attr);
+    }
 
 		return filter;
 	}
@@ -157,12 +186,12 @@ function OCombo(attr){
 						o._set_loaded(o.ref);
 						o.form_obj(attr.pwnd);
 					});
-
-		} else if(this.name == "open"){
+		}
+		else if(this.name == "open"){
 			if(_obj && _obj[_field] && !_obj[_field].empty())
 				_obj[_field].form_obj(attr.pwnd);
-
-		} else if(this.name == "type"){
+		}
+		else if(_meta && this.name == "type"){
 			var tlist = [], tmgr, tmeta, tobj = _obj, tfield = _field;
 			_meta.type.types.forEach(function (o) {
 				tmgr = _md.mgr_by_class_name(o);
@@ -175,11 +204,11 @@ function OCombo(attr){
 			});
 			$p.iface.select_from_list(tlist)
 				.then(function(v){
-					if(!tobj[tfield] || (tobj[tfield] && tobj[tfield]._manager != v.mgr)){
+					if(tobj[tfield] && ((tobj[tfield].empty && tobj[tfield].empty()) || tobj[tfield]._manager != v.mgr)){
 						_mgr = v.mgr;
 						_obj = tobj;
 						_field = tfield;
-						_meta = _obj._metadata.fields[_field];
+						_meta = typeof _obj._metadata == 'function' ? _obj._metadata(_field) : _obj._metadata.fields[_field];
 						_mgr.form_selection({
 							on_select: function (selv) {
 								_obj[_field] = selv;
@@ -219,8 +248,9 @@ function OCombo(attr){
 
 	function popup_show(){
 
-		if(_mgr instanceof EnumManager)
-			return;
+		if(!_mgr || !_mgr.class_name || _mgr instanceof EnumManager){
+      return;
+    }
 
 		popup_focused = true;
 		var div = document.createElement('div'),
@@ -230,7 +260,7 @@ function OCombo(attr){
 		// для полных прав разрешаем добавление элементов
 		// TODO: учесть реальные права на добавление
 		if(!attr.hide_frm){
-			var _acl = $p.current_acl.get_acl(_mgr.class_name);
+			var _acl = $p.current_user.get_acl(_mgr.class_name);
 			if(_acl.indexOf("i") != -1)
 				innerHTML += "&nbsp;<a href='#' name='add' title='Создать новый элемент {F8}'><i class='fa fa-plus fa-fwfa-fw'></i></a>";
 		}
@@ -264,8 +294,10 @@ function OCombo(attr){
 	}
 
 	function onkeyup(e) {
-		if(_mgr instanceof EnumManager)
-			return;
+
+		if(!_mgr || _mgr instanceof EnumManager){
+      return;
+    }
 
 		if(e.keyCode == 115){ // F4
 			if(e.ctrlKey && e.shiftKey){
@@ -303,22 +335,15 @@ function OCombo(attr){
 	t.getInput().addEventListener("focus", onfocus);
 
 
-	function observer(changes){
-		if(!t || !t.getBase)
-			return;
-		else if(!t.getBase().parentElement)
-			setTimeout(t.unload);
-		else{
-			if(_obj instanceof TabularSectionRow){
-
-			}else
-				changes.forEach(function(change){
-					if(change.name == _field){
-						set_value(_obj[_field]);
-					}
-				});
-		}
-	}
+	function listener(obj, fields){
+	  if(!_obj || !t.getBase().parentElement){
+      setTimeout(t.unload);
+    }
+		if(!t || !t.getBase || obj !== _obj){
+      return;
+    }
+    fields[_field] && set_value(_obj[_field]);
+  }
 
 	function set_value(v){
 		if(v && v instanceof DataObj && !v.empty()){
@@ -327,7 +352,8 @@ function OCombo(attr){
 			if(t.getSelectedValue() == v.ref)
 				return;
 			t.setComboValue(v.ref);
-		}else if(!t.getSelectedValue()){
+		}
+		else if(!t.getSelectedValue()){
 			t.setComboValue("");
 			t.setComboText("")
 		}
@@ -338,14 +364,6 @@ function OCombo(attr){
 	 * Параметры аналогичны конструктору
 	 */
 	this.attach = function (attr) {
-
-		if(_obj){
-			if(_obj instanceof TabularSectionRow)
-				Object.unobserve(_obj._owner._owner, observer);
-			else
-				Object.unobserve(_obj, observer);
-		}
-
 		_obj = attr.obj;
 		_field = attr.field;
 		_property = attr.property;
@@ -354,18 +372,18 @@ function OCombo(attr){
 			_meta = attr.metadata;
 
 		else if(_property){
-			_meta = _obj._metadata.fields[_field]._clone();
+			_meta = (typeof _obj._metadata == 'function' ? _obj._metadata(_field) : _obj._metadata.fields[_field])._clone();
 			_meta.type = _property.type;
 
 		}else
-			_meta = _obj._metadata.fields[_field];
+			_meta = typeof _obj._metadata == 'function' ? _obj._metadata(_field) : _obj._metadata.fields[_field];
 
 		t.clearAll();
 		_mgr = _md.value_mgr(_obj, _field, _meta.type);
 
 		if(_mgr || attr.get_option_list){
 			// загружаем список в 30 строк
-			(attr.get_option_list || _mgr.get_option_list).call(_mgr, _obj[_field], get_filter())
+			(attr.get_option_list || _mgr.get_option_list).call(_mgr, get_filter(), _obj[_field])
 				.then(function (l) {
 					if(t.addOption){
 						t.addOption(l);
@@ -376,52 +394,45 @@ function OCombo(attr){
 		}
 
 		// начинаем следить за объектом
-		if(_obj instanceof TabularSectionRow)
-			Object.observe(_obj._owner._owner, observer, ["row"]);
-		else
-			Object.observe(_obj, observer, ["update"]);
+    if(_mgr){
+      _mgr.off('update', listener);
+      _mgr.on('update', listener);
+    }
 
 	};
 
-	var _unload = this.unload;
+  this.open_selection = function () {
+    aclick.call({name: "select"});
+  }
+
+	const _unload = this.unload;
 	this.unload = function () {
+    popup_hide();
+    if(t.getButton){
+      t.getButton().removeEventListener("mouseover", popup_show);
+      t.getButton().removeEventListener("mouseout", popup_hide);
+      t.getBase().removeEventListener("click", $p.iface.cancel_bubble);
+      t.getBase().removeEventListener("contextmenu", oncontextmenu);
+      t.getInput().removeEventListener("keyup", onkeyup);
+      t.getInput().removeEventListener("focus", onfocus);
+    }
+    if(t.conf && t.conf.tm_confirm_blur){
+      clearTimeout(t.conf.tm_confirm_blur);
+    }
+    _mgr && _mgr.off('update', listener);
+    this.list && this.list.parentElement && this.list.parentElement.removeChild(this.list);
+    _obj = null;
+    _field = null;
+    _meta = null;
+    _mgr = null;
+    _pwnd = null;
 
-		popup_hide();
-
-		t.getButton().removeEventListener("mouseover", popup_show);
-
-		t.getButton().removeEventListener("mouseout", popup_hide);
-
-		t.getBase().removeEventListener("click", $p.iface.cancel_bubble);
-
-		t.getBase().removeEventListener("contextmenu", oncontextmenu);
-
-		t.getInput().removeEventListener("keyup", onkeyup);
-
-		t.getInput().removeEventListener("focus", onfocus);
-
-		if(_obj){
-			if(_obj instanceof TabularSectionRow)
-				Object.unobserve(_obj._owner._owner, observer);
-			else
-				Object.unobserve(_obj, observer);
-		}
-		
-		if(t.conf && t.conf.tm_confirm_blur)
-			clearTimeout(t.conf.tm_confirm_blur);
-		
-		_obj = null;
-		_field = null;
-		_meta = null;
-		_mgr = null;
-		_pwnd = null;
-		
-		try{ _unload.call(t); }catch(e){}
+    try{ _unload && _unload.call(t); }catch(e){}
 	};
 
 	// биндим поле объекта
-	if(attr.obj && attr.field)
-		this.attach(attr);
+	attr.obj && attr.field && this.attach(attr);
+
 	// устанавливаем url фильтрации
 	this.enableFilteringMode("between", "dummy", false, false);
 
@@ -524,4 +535,57 @@ $p.iface.select_from_list = function (list, multy) {
 			_grid.selectRowById(sid);
 
 	});
+};
+
+/**
+ * ### Форма ввода значения
+ * @method query_value
+ * @for InterfaceObjs
+ * @param initial
+ * @param caption
+ * @return {Promise}
+ */
+$p.iface.query_value = function (initial, caption) {
+
+  return new Promise(function(resolve, reject){
+
+    // создаём и показываем диалог со списком
+
+    // параметры открытия формы
+    var options = {
+        name: 'wnd_query_value',
+        wnd: {
+          width: 300,
+          height: 160,
+          modal: true,
+          center: true,
+          caption: caption || 'Введите значение',
+          allow_close: true,
+          on_close: function () {
+            reject();
+            return true;
+          }
+        }
+      },
+      wnd = $p.iface.dat_blank(null, options.wnd),
+      _toolbar = wnd.attachToolbar({
+        items:[
+          {id: "select", type: "button", text: "<b>Ok</b>"},
+          {id: "sp", type: "spacer"},
+          {id: "cancel", type: "button", text: "Отмена"}
+        ],
+        onClick: function (id){
+          if(id == "cancel"){
+            wnd.close()
+          }
+          else{
+            resolve(wnd.cell.querySelector('INPUT').value);
+            wnd.close();
+          }
+        }
+      });
+
+    wnd.attachHTMLString("<input type='text' style='width: 94%; padding: 4px;' value='" + initial + "' />");
+
+  });
 };

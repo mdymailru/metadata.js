@@ -49,12 +49,18 @@ module.exports = function (package_data) {
 	function create_modules(_m){
 
 		var name,
-			text = "$p.md.create_managers=function(){\n",
+			sys_nsmes = ["log","meta_objs","meta_fields","scheme_settings"],
+			text = "$p.md.create_managers=function(){\n" +
+				"// создаём системные менеджеры (журнал регистрации, метаданные и настройки компоновки)\n" +
+				"$p.ireg.log = new $p.LogManager();\n" +
+				"$p.cat.meta_objs = new $p.MetaObjManager();\n" +
+				"$p.cat.meta_fields = new $p.MetaFieldManager();\n" +
+				"$p.cat.scheme_settings = new $p.SchemeSettingsManager();\n",
 			categoties = {
 				cch: {mgr: "ChartOfCharacteristicManager", obj: "CatObj"},
 				cacc: {mgr: "ChartOfAccountManager", obj: "CatObj"},
 				cat: {mgr: "CatManager", obj: "CatObj"},
-				bp: {mgr: "BusinessProcessObj", obj: "BusinessProcessObj"},
+				bp: {mgr: "BusinessProcessManager", obj: "BusinessProcessObj"},
 				tsk: {mgr: "TaskManager", obj: "TaskObj"},
 				doc: {mgr: "DocManager", obj: "DocObj"},
 				ireg: {mgr: "InfoRegManager", obj: "RegisterRow"},
@@ -71,10 +77,9 @@ module.exports = function (package_data) {
 		for(var category in categoties){
 			for(name in _m[category]){
 				text+= obj_constructor_text(_m, category, name, categoties[category].obj);
-				if(name == "$log")
-					text+= "$p." + category + "." + name + " = new $p.LogManager('ireg.$log');\n";
-				else
+				if(sys_nsmes.indexOf(name) == -1){
 					text+= "$p." + category + "." + name + " = new $p." + categoties[category].mgr + "('" + category + "." + name + "');\n";
+				}
 			}
 		}
 
@@ -131,8 +136,9 @@ module.exports = function (package_data) {
 
 
 		// табличные части по метаданным
-		props = "";
 		for(var ts in meta.tabular_sections){
+
+			props = "";
 
 			// создаём конструктор строки табчасти
 			var row_fn_name = $p.DataManager.prototype.obj_constructor.call({class_name: category + "." + name}, ts);

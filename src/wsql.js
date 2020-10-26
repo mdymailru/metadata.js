@@ -58,15 +58,20 @@ function WSQL(){
 		set_user_param: {
 			value: function(prm_name, prm_value){
 
-				var str_prm = prm_value;
-				if(typeof prm_value == "object")
-					str_prm = JSON.stringify(prm_value);
+				if(typeof prm_value == "object"){
+					user_params[prm_name] = prm_value;
+					prm_value = JSON.stringify(prm_value);
+				}
+				else if(prm_value === false || prm_value === "false"){
+					user_params[prm_name] = false;
+					prm_value = "";
+				}
+				else{
+					user_params[prm_name] = prm_value;
+				}
 
-				else if(prm_value === false)
-					str_prm = "";
+				ls.setItem($p.job_prm.local_storage_prefix+prm_name, prm_value);
 
-				ls.setItem($p.job_prm.local_storage_prefix+prm_name, str_prm);
-				user_params[prm_name] = prm_value;
 			}
 		},
 
@@ -82,33 +87,11 @@ function WSQL(){
 		get_user_param: {
 			value: function(prm_name, type){
 
-				if(!user_params.hasOwnProperty(prm_name) && ls)
+				if(!user_params.hasOwnProperty(prm_name) && ls){
 					user_params[prm_name] = this.fetch_type(ls.getItem($p.job_prm.local_storage_prefix+prm_name), type);
+				}
 
 				return user_params[prm_name];
-			}
-		},
-
-		/**
-		 * ### Выполняет sql запрос к локальной базе данных
-		 *
-		 * @method promise
-		 * @param sql
-		 * @param params
-		 * @return {Promise}
-		 * @async
-		 */
-		promise: {
-			value: function(sql, params) {
-				return new Promise(function(resolve, reject){
-					wsql.alasql(sql, params || [], function(data, err) {
-						if(err) {
-							reject(err);
-						} else {
-							resolve(data);
-						}
-					});
-				});
 			}
 		},
 
@@ -204,33 +187,31 @@ function WSQL(){
 				if(typeof localStorage === "undefined"){
 
 					// локальное хранилище внутри node.js
-					if(typeof WorkerGlobalScope === "undefined"){
-						ls = new require('node-localstorage').LocalStorage('./localstorage');
-
-					}else{
-						ls = {
-							setItem: function (name, value) {
-
-							},
-							getItem: function (name) {
-
-							}
-						};
-					}
-
-				} else
-					ls = localStorage;
+					// if(typeof WorkerGlobalScope === "undefined"){
+					// 	ls = new require('node-localstorage').LocalStorage('./localstorage');
+					// }
+          ls = {
+            setItem: function (name, value) {
+            },
+            getItem: function (name) {
+            }
+          };
+				}
+				else{
+          ls = localStorage;
+        }
 
 				// значения базовых параметров по умолчанию
 				var nesessery_params = [
-					{p: "user_name",		v: "", t:"string"},
-					{p: "user_pwd",			v: "", t:"string"},
+					{p: "user_name",      v: "", t:"string"},
+					{p: "user_pwd",       v: "", t:"string"},
 					{p: "browser_uid",		v: $p.utils.generate_guid(), t:"string"},
-					{p: "zone",             v: $p.job_prm.hasOwnProperty("zone") ? $p.job_prm.zone : 1, t: $p.job_prm.zone_is_string ? "string" : "number"},
-					{p: "enable_save_pwd",	v: $p.job_prm.enable_save_pwd,	t:"boolean"},
-					{p: "autologin",		v: "",	t:"boolean"},
+					{p: "zone",           v: $p.job_prm.hasOwnProperty("zone") ? $p.job_prm.zone : 1, t: $p.job_prm.zone_is_string ? "string" : "number"},
+					{p: "enable_save_pwd",v: $p.job_prm.enable_save_pwd,	t:"boolean"},
+          {p: "couch_direct",   v: $p.job_prm.hasOwnProperty("couch_direct") ? $p.job_prm.couch_direct : true,	t:"boolean"},
+					{p: "couch_path",		  v: $p.job_prm.couch_path,	t:"string"},
+          {p: "rest_path",		  v: "", t:"string"},
 					{p: "skin",		        v: "dhx_web", t:"string"},
-					{p: "rest_path",		v: "", t:"string"}
 				],	zone;
 
 				// подмешиваем к базовым параметрам настройки приложения
@@ -248,7 +229,7 @@ function WSQL(){
 
 				// дополняем хранилище недостающими параметрами
 				nesessery_params.forEach(function(o){
-					if(wsql.get_user_param(o.p, o.t) == undefined ||
+					if((o.t == "boolean" ? wsql.get_user_param(o.p) : wsql.get_user_param(o.p, o.t)) == undefined ||
 						(!wsql.get_user_param(o.p, o.t) && (o.p.indexOf("url") != -1)))
 						wsql.set_user_param(o.p, $p.job_prm.hasOwnProperty(o.p) ? $p.job_prm[o.p] : o.v);
 				});
@@ -258,7 +239,9 @@ function WSQL(){
 					path: wsql.get_user_param("couch_path", "string") || $p.job_prm.couch_path || "",
 					zone: wsql.get_user_param("zone", "number"),
 					prefix: $p.job_prm.local_storage_prefix,
-					suffix: wsql.get_user_param("couch_suffix", "string") || ""
+					direct: wsql.get_user_param("couch_direct", "boolean"),
+					user_node: $p.job_prm.user_node,
+					noreplicate: $p.job_prm.noreplicate
 				};
 				if(pouch_prm.path){
 

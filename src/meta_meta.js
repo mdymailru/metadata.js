@@ -8,6 +8,7 @@
  * @requires common
  */
 
+var _md;
 
 /**
  * ### Хранилище метаданных конфигурации
@@ -22,12 +23,665 @@
  */
 function Meta() {
 
-	var _m;
+	var _m = {
+		enm: {
+			accumulation_record_type: [
+				{
+					order: 0,
+					name: "debit",
+					synonym: "Приход"
+				},
+				{
+					order: 1,
+					name: "credit",
+					synonym: "Расход"
+				}
+			],
+			sort_directions: [
+				{
+					order: 0,
+					name: "asc",
+					synonym: "По возрастанию"
+				},
+				{
+					order: 1,
+					name: "desc",
+					synonym: "По убыванию"
+				}
+			],
+			comparison_types: [
+				{
+					order: 0,
+					name: "gt",
+					synonym: "Больше"
+				},
+				{
+					order: 1,
+					name: "gte",
+					synonym: "Больше или равно"
+				},
+				{
+					order: 2,
+					name: "lt",
+					synonym: "Меньше"
+				},
+				{
+					order: 3,
+					name: "lte",
+					synonym: "Меньше или равно "
+				},
+				{
+					order: 4,
+					name: "eq",
+					synonym: "Равно"
+				},
+				{
+					order: 5,
+					name: "ne",
+					synonym: "Не равно"
+				},
+				{
+					"order": 6,
+					"name": "in",
+					"synonym": "В списке"
+				},
+				{
+					order: 7,
+					name: "nin",
+					synonym: "Не в списке"
+				},
+				{
+					order: 8,
+					name: "lke",
+					synonym: "Подобно "
+				},
+				{
+					order: 9,
+					name: "nlk",
+					synonym: "Не подобно"
+				}
+			]
+		},
+		cat: {
+      meta_objs: {
+        fields: {}
+      },
+      meta_fields: {
+        fields: {}
+      },
+      scheme_settings: {
+        name: "scheme_settings",
+        synonym: "Настройки отчетов и списков",
+        input_by_string: [
+          "name"
+        ],
+        hierarchical: false,
+        has_owners: false,
+        group_hierarchy: true,
+        main_presentation_name: true,
+        code_length: 0,
+        fields: {
+          obj: {
+            synonym: "Объект",
+            tooltip: "Имя класса метаданных",
+            type: {
+              types: [
+                "string"
+              ],
+              str_len: 250
+            }
+          },
+          user: {
+            synonym: "Пользователь",
+            tooltip: "Если пусто - публичная настройка",
+            type: {
+              types: [
+                "string"
+              ],
+              str_len: 50
+            }
+          },
+          order: {
+            synonym: "Порядок",
+            tooltip: "Порядок варианта",
+            type: {
+              types: [
+                "number"
+              ],
+              digits: 6,
+              fraction_figits: 0,
+            }
+          },
+          query: {
+            synonym: "Запрос",
+            tooltip: "Индекс CouchDB или текст SQL",
+            type: {
+              types: [
+                "string"
+              ],
+              str_len: 0
+            }
+          },
+          date_from: {
+            "synonym": "Начало периода",
+            "tooltip": "",
+            "type": {
+              "types": [
+                "date"
+              ],
+              "date_part": "date"
+            }
+          },
+          date_till: {
+            "synonym": "Конец периода",
+            "tooltip": "",
+            "type": {
+              "types": [
+                "date"
+              ],
+              "date_part": "date"
+            }
+          },
+          formula: {
+            synonym: "Формула",
+            tooltip: "Формула инициализации",
+            type: {
+              types: [
+                "cat.formulas"
+              ],
+              is_ref: true
+            }
+          },
+          tag: {
+            synonym: "Дополнительные свойства",
+            type: {
+              types: [
+                "string"
+              ],
+              str_len: 0
+            }
+          }
+        },
+        tabular_sections: {
+          fields: {
+            name: "fields",
+            synonym: "Доступные поля",
+            tooltip: "Состав, порядок и ширина колонок",
+            fields: {
+              parent: {
+                synonym: "Родитель",
+                tooltip: "Для плоского списка, родитель пустой",
+                type: {
+                  types: [
+                    "string"
+                  ],
+                  str_len: 100
+                }
+              },
+              use: {
+                synonym: "Использование",
+                tooltip: "",
+                type: {
+                  types: [
+                    "boolean"
+                  ]
+                }
+              },
+              field: {
+                synonym: "Поле",
+                tooltip: "",
+                type: {
+                  types: [
+                    "string"
+                  ],
+                  str_len: 100
+                }
+              },
+              width: {
+                synonym: "Ширина",
+                tooltip: "",
+                type: {
+                  types: [
+                    "string"
+                  ],
+                  str_len: 6
+                }
+              },
+              caption: {
+                synonym: "Заголовок",
+                tooltip: "",
+                type: {
+                  types: [
+                    "string"
+                  ],
+                  str_len: 100
+                }
+              },
+              tooltip: {
+                synonym: "Подсказка",
+                tooltip: "",
+                type: {
+                  types: [
+                    "string"
+                  ],
+                  str_len: 100
+                }
+              },
+              ctrl_type: {
+                synonym: "Тип",
+                tooltip: "Тип элемента управления",
+                type: {
+                  types: [
+                    "string"
+                  ],
+                  str_len: 100
+                }
+              },
+              formatter: {
+                synonym: "Формат",
+                tooltip: "Функция форматирования",
+                type: {
+                  types: [
+                    "cat.formulas"
+                  ],
+                  is_ref: true
+                }
+              },
+              editor: {
+                synonym: "Редактор",
+                tooltip: "Компонент редактирования",
+                type: {
+                  types: [
+                    "cat.formulas"
+                  ],
+                  is_ref: true
+                }
+              }
+            }
+          },
+          sorting: {
+            name: "sorting",
+            synonym: "Поля сортировки",
+            tooltip: "",
+            fields: {
+              parent: {
+                synonym: "Родитель",
+                tooltip: "",
+                type: {
+                  types: [
+                    "string"
+                  ],
+                  str_len: 100
+                }
+              },
+              use: {
+                synonym: "Использование",
+                tooltip: "",
+                type: {
+                  types: [
+                    "boolean"
+                  ]
+                }
+              },
+              field: {
+                synonym: "Поле",
+                tooltip: "",
+                type: {
+                  types: [
+                    "string"
+                  ],
+                  str_len: 100
+                }
+              },
+              direction: {
+                synonym: "Направление",
+                tooltip: "",
+                type: {
+                  types: [
+                    "enm.sort_directions"
+                  ],
+                  "is_ref": true
+                }
+              }
+            }
+          },
+          dimensions: {
+            name: "dimensions",
+            synonym: "Поля группировки",
+            tooltip: "",
+            fields: {
+              parent: {
+                synonym: "Родитель",
+                tooltip: "",
+                type: {
+                  types: [
+                    "string"
+                  ],
+                  str_len: 100
+                }
+              },
+              use: {
+                synonym: "Использование",
+                tooltip: "",
+                type: {
+                  types: [
+                    "boolean"
+                  ]
+                }
+              },
+              field: {
+                synonym: "Поле",
+                tooltip: "",
+                type: {
+                  types: [
+                    "string"
+                  ],
+                  str_len: 100
+                }
+              }
+            }
+          },
+          resources: {
+            name: "resources",
+            synonym: "Ресурсы",
+            tooltip: "",
+            fields: {
+              parent: {
+                synonym: "Родитель",
+                tooltip: "",
+                type: {
+                  types: [
+                    "string"
+                  ],
+                  str_len: 100
+                }
+              },
+              use: {
+                synonym: "Использование",
+                tooltip: "",
+                type: {
+                  types: [
+                    "boolean"
+                  ]
+                }
+              },
+              field: {
+                synonym: "Поле",
+                tooltip: "",
+                type: {
+                  types: [
+                    "string"
+                  ],
+                  str_len: 100
+                }
+              },
+              formula: {
+                synonym: "Формула",
+                tooltip: "По умолчанию - сумма",
+                type: {
+                  types: [
+                    "cat.formulas"
+                  ],
+                  is_ref: true
+                }
+              }
+            }
+          },
+          selection: {
+            name: "selection",
+            synonym: "Отбор",
+            tooltip: "",
+            fields: {
+              parent: {
+                synonym: "Родитель",
+                tooltip: "",
+                type: {
+                  types: [
+                    "string"
+                  ],
+                  str_len: 100
+                }
+              },
+              use: {
+                synonym: "Использование",
+                tooltip: "",
+                type: {
+                  types: [
+                    "boolean"
+                  ]
+                }
+              },
+              left_value: {
+                synonym: "Левое значение",
+                tooltip: "",
+                type: {
+                  types: [
+                    "string"
+                  ],
+                  str_len: 100
+                }
+              },
+              comparison_type: {
+                synonym: "Вид сравнения",
+                tooltip: "",
+                type: {
+                  types: [
+                    "enm.comparison_types"
+                  ],
+                  is_ref: true
+                }
+              },
+              right_value: {
+                synonym: "Правое значение",
+                tooltip: "",
+                type: {
+                  types: [
+                    "string"
+                  ],
+                  str_len: 100
+                }
+              }
+            }
+          },
+          params: {
+            name: "params",
+            synonym: "Параметры",
+            tooltip: "",
+            fields: {
+              param: {
+                synonym: "Параметр",
+                tooltip: "",
+                type: {
+                  types: [
+                    "string"
+                  ],
+                  str_len: 100
+                }
+              },
+              value_type: {
+                synonym: "Тип",
+                tooltip: "Тип значения",
+                type: {
+                  types: [
+                    "string"
+                  ],
+                  str_len: 100
+                }
+              },
+              value: {
+                synonym: "Значение",
+                tooltip: "Может иметь примитивный или ссылочный тип или массив",
+                type: {
+                  types: [
+                    "string",
+                    "number",
+                    // "date",
+                    // "array"
+                  ],
+                  str_len: 0,
+                  digits: 15,
+                  fraction_figits: 3,
+                  // date_part: "date"
+                }
+              }
+            }
+          },
+          composition: {
+            name: "composition",
+            synonym: "Структура",
+            tooltip: "",
+            fields: {
+              parent: {
+                "synonym": "Родитель",
+                "multiline_mode": false,
+                "tooltip": "",
+                "type": {
+                  "types": [
+                    "string"
+                  ],
+                  "str_len": 10
+                }
+              },
+              use: {
+                synonym: "Использование",
+                tooltip: "",
+                type: {
+                  types: [
+                    "boolean"
+                  ]
+                }
+              },
+              field: {
+                "synonym": "Элемент",
+                "tooltip": "Элемент структуры отчета",
+                "type": {
+                  "types": [
+                    "string"
+                  ],
+                  "str_len": 50
+                }
+              },
+              kind: {
+                "synonym": "Вид раздела отчета",
+                "tooltip": "список, таблица, группировка строк, группировка колонок",
+                "type": {
+                  "types": [
+                    "string"
+                  ],
+                  "str_len": 50
+                }
+              },
+              definition: {
+                "synonym": "Описание",
+                "tooltip": "Описание раздела структуры",
+                "type": {
+                  "types": [
+                    "string"
+                  ],
+                  "str_len": 50
+                }
+              }
+            }
+          }
+        },
+        cachable: "doc"
+      }
+		},
+		doc: {},
+		ireg: {
+			log: {
+				name: "log",
+				note: "",
+				synonym: "Журнал событий",
+				dimensions: {
+					date: {
+						synonym: "Дата",
+						multiline_mode: false,
+						tooltip: "Время события",
+						type: {
+							types: [
+								"number"
+							],
+							digits: 15,
+							fraction_figits: 0
+						}
+					},
+					sequence: {
+						synonym: "Порядок",
+						multiline_mode: false,
+						tooltip: "Порядок следования",
+						type: {
+							types: [
+								"number"
+							],
+							digits: 6,
+							fraction_figits: 0
+						}
+					}
+				},
+				resources: {
+					"class": {
+						synonym: "Класс",
+						multiline_mode: false,
+						tooltip: "Класс события",
+						type: {
+							types: [
+								"string"
+							],
+							str_len: 100
+						}
+					},
+					note: {
+						synonym: "Комментарий",
+						multiline_mode: true,
+						tooltip: "Текст события",
+						type: {
+							types: [
+								"string"
+							],
+							str_len: 0
+						}
+					},
+					obj: {
+						synonym: "Объект",
+						multiline_mode: true,
+						tooltip: "Объект, к которому относится событие",
+						type: {
+							types: [
+								"string"
+							],
+							str_len: 0
+						}
+					}
+				}
+			}
+		},
+		areg: {},
+		dp: {
+      scheme_settings: {
+        name: "scheme_settings",
+        synonym: "Варианты настроек",
+        fields: {
+          scheme: {
+            synonym: "Текущая настройка",
+            tooltip: "Текущий вариант настроек",
+            mandatory: true,
+            type: {
+              types: [
+                "cat.scheme_settings"
+              ],
+              is_ref: true
+            }
+          }
+        }
+      }
+    },
+		rep: {},
+		cch: {},
+		cacc: {}
+	};
 
 	_md = this;
-
-
-
 
 	// загружает метаданные из pouchdb
 	function meta_from_pouch(meta_db){
@@ -38,7 +692,7 @@ function Meta() {
 
 			})
 			.then(function (doc) {
-				_m = doc;
+				$p._patch(_m, doc);
 				doc = null;
 				return meta_db.get('meta_patch');
 
@@ -47,6 +701,7 @@ function Meta() {
 				doc = null;
 				delete _m._id;
 				delete _m._rev;
+				return _m;
 			});
 	}
 
@@ -54,9 +709,48 @@ function Meta() {
 	/**
 	 * ### Cоздаёт объекты менеджеров
 	 * @method create_managers
-	 * @for Meta
 	 */
 	_md.create_managers = function(){};
+
+  /**
+   * ### Возвращает массив используемых баз
+   *
+   * @method bases
+   * @return {Array}
+   */
+  _md.bases = function () {
+    var res = {};
+    for(var i in _m){
+      for(var j in _m[i]){
+        if(_m[i][j].cachable){
+          var _name = _m[i][j].cachable.replace('_remote', '').replace('_ram', '');
+          if(_name != 'meta' && _name != 'e1cib' && !res[_name])
+            res[_name] = _name;
+        }
+      }
+    }
+    return Object.keys(res);
+  }
+
+  /**
+   * ### Загружает объекты с типом кеширования doc_ram в ОЗУ
+   * @method load_doc_ram
+   */
+  _md.load_doc_ram = function() {
+    var res = [];
+    ['cat','cch','ireg'].forEach(function (kind) {
+      for (var name in _m[kind]) {
+        if (_m[kind][name].cachable == 'doc_ram') {
+          res.push(kind + '.' + name);
+        }
+      }
+    });
+    return $p.wsql.pouch.local.doc.find({
+      selector: {class_name: {$in: res}},
+      limit: 10000
+    })
+      .then($p.wsql.pouch.load_changes);
+  }
 
 	/**
 	 * ### Инициализирует метаданные
@@ -74,7 +768,7 @@ function Meta() {
 		function do_init(){
 
 			if(meta_db && !is_local && !is_remote){
-				_m = meta_db;
+				$p._patch(_m, meta_db);
 				meta_db = null;
 
 				_md.create_managers();
@@ -105,10 +799,12 @@ function Meta() {
 			if(!_m)
 				do_init();
 
-			else{
+			else if($p.iface && $p.iface.do_reload && change.docs && change.docs.length < 4){
 
 				// если изменились метаданные, запланировать перезагрузку
-				$p.iface.do_reload();
+				setTimeout(function () {
+					$p.iface.do_reload();
+				}, 10000);
 
 			}
 
@@ -316,13 +1012,17 @@ function Meta() {
 	 * @return {DataManager|Array}
 	 */
 	_md.value_mgr = function(row, f, mf, array_enabled, v){
+
 		var property, oproperty, tnames, rt, mgr;
-		if(mf._mgr)
+
+		if(mf._mgr instanceof DataManager){
 			return mf._mgr;
+		}
 
 		function mf_mgr(mgr){
-			if(mgr && mf.types.length == 1)
+			if(mgr instanceof DataManager && mf.types.length == 1){
 				mf._mgr = mgr;
+			}
 			return mgr;
 		}
 
@@ -365,28 +1065,51 @@ function Meta() {
 		}else{
 
 			// Получаем объект свойства
-			if($p.utils.is_data_obj(property))
+			if($p.utils.is_data_obj(property)){
 				oproperty = property;
-			else if($p.utils.is_guid(property))
+			}
+			else if($p.utils.is_guid(property)){
 				oproperty = $p.cch.properties.get(property, false);
-			else
+			}
+			else{
 				return;
+			}
 
 			if($p.utils.is_data_obj(oproperty)){
 
-				if(oproperty.is_new())
+				// затычка для неизвестных свойств используем значения свойств объектов
+				if(oproperty.is_new()){
 					return $p.cat.property_values;
+				}
 
 				// и через его тип выходми на мнеджера значения
-				for(rt in oproperty.type.types)
-					if(oproperty.type.types[rt].indexOf(".") > -1){
-						tnames = oproperty.type.types[rt].split(".");
-						break;
+				rt = [];
+				oproperty.type.types.some(function(v){
+					tnames = v.split(".");
+					if(tnames.length > 1 && $p[tnames[0]][tnames[1]]){
+						rt.push($p[tnames[0]][tnames[1]]);
 					}
-				if(tnames && tnames.length > 1 && $p[tnames[0]])
-					return mf_mgr($p[tnames[0]][tnames[1]]);
-				else
-					return oproperty.type;
+					else if(v == "boolean"){
+						rt.push({types: ["boolean"]});
+						return true
+					}
+				});
+				if(rt.length == 1 || row[f] == $p.utils.blank.guid){
+					return mf_mgr(rt[0]);
+				}
+				else if(array_enabled){
+					return rt;
+				}
+				else if((property = row[f]) instanceof DataObj){
+					return property._manager;
+				}
+				else if($p.utils.is_guid(property) && property != $p.utils.blank.guid){
+					for(var i in rt){
+						mgr = rt[i];
+						if(mgr.get(property, false, true))
+							return mgr;
+					}
+				}
 			}
 		}
 	};

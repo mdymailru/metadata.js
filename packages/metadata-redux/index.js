@@ -1,376 +1,854 @@
+/*!
+ metadata-redux v2.0.18-beta.4, built:2019-03-07
+ © 2014-2019 Evgeniy Malyarov and the Oknosoft team http://www.oknosoft.ru
+ metadata.js may be freely distributed under the MIT
+ To obtain commercial license and technical support, contact info@oknosoft.ru
+ */
+
+
 'use strict';
 
-Object.defineProperty(exports, "__esModule", {
-	value: true
-});
+Object.defineProperty(exports, '__esModule', { value: true });
 
-var _actions, _ACTION_HANDLERS;
+var reactRedux = require('react-redux');
+var reactRouterRedux = require('react-router-redux');
+var reactRouter = require('react-router');
 
-function _defineProperty(obj, key, value) { if (key in obj) { Object.defineProperty(obj, key, { value: value, enumerable: true, configurable: true, writable: true }); } else { obj[key] = value; } return obj; }
-
-/**
- * ### Действия и типы действий в терминах redux
- *
- * &copy; Evgeniy Malyarov http://www.oknosoft.ru 2014-2016
- * @module actions.js
- *
- * Created 05.09.2016
- */
-
-// ------------------------------------
-// Action types - имена типов действий
-// ------------------------------------
-
-var META_LOADED = 'META_LOADED'; // Инициализирует параметры и создаёт менеджеры объектов данных
-
-var OBJ_ADD = 'OBJ_ADD'; // Команда создать объекта
-var OBJ_ADD_ROW = 'OBJ_ADD_ROW'; // Команда добавить строку в табчасть объекта
-var OBJ_DEL_ROW = 'OBJ_DEL_ROW'; // Команда удалить строку табчасти объекта
-var OBJ_EDIT = 'OBJ_EDIT'; // Команда открыть форму редактирования объекта
-var OBJ_DELETE = 'OBJ_DELETE'; // Команда пометить объект на удаление
-var OBJ_REVERT = 'OBJ_REVERT'; // Команда вернуть объект в состояние до редактирования (перечитать из базы данных)
-var OBJ_SAVE = 'OBJ_SAVE'; // Команда записать изменённый объект
-var OBJ_CHANGED = 'OBJ_CHANGED'; // Записан изменённый объект (по команде интерфейса или в результате репликации)
-
-var USER_TRY_LOG_IN = 'USER_TRY_LOG_IN'; // Попытка авторизации
-var USER_LOG_IN = 'USER_LOG_IN'; // Подтверждает авторизацию
-var USER_DEFINED = 'USER_DEFINED'; // Установить текущего пользователя (авторизация не обязательна)
-var USER_LOG_OUT = 'USER_LOG_OUT'; // Попытка завершения синхронизации
-
-var POUCH_DATA_PAGE = 'POUCH_DATA_PAGE'; // Оповещение о загрузке порции локальных данных
-var POUCH_LOAD_START = 'POUCH_LOAD_START'; // Оповещение о начале загрузки локальных данных
-var POUCH_DATA_LOADED = 'POUCH_DATA_LOADED'; // Оповещение об окончании загрузки локальных данных
-var POUCH_DATA_ERROR = 'POUCH_DATA_ERROR'; // Оповещение об ошибке при загрузке локальных данных
-var POUCH_NO_DATA = 'POUCH_NO_DATA'; // Оповещение об отсутствии локальных данных (как правило, при первом запуске)
-
-var POUCH_SYNC_START = 'POUCH_SYNC_START'; // Оповещение о начале синхронизации базы doc
-var POUCH_SYNC_ERROR = 'POUCH_SYNC_ERROR'; // Оповещение об ошибке репликации - не означает окончания репликации - просто информирует об ошибке
-var POUCH_SYNC_DATA = 'POUCH_SYNC_DATA'; // Прибежали изменения с сервера или мы отправили данные на сервер
-
-
-// ------------------------------------
-// Actions - функции - генераторы действий. Они передаются в диспетчер redux
-// ------------------------------------
-
-function meta_loaded() {
-
-	return { type: META_LOADED };
+const TRY_LOG_IN = 'USER_TRY_LOG_IN';
+const LOG_IN = 'USER_LOG_IN';
+const DEFINED = 'USER_DEFINED';
+const LOG_OUT = 'USER_LOG_OUT';
+const LOG_ERROR = 'USER_LOG_ERROR';
+const SOCIAL_TRY_LINK = 'USER_SOCIAL_TRY_LINK';
+const SOCIAL_LINKED = 'USER_SOCIAL_LINKED';
+const SOCIAL_UNLINKED = 'USER_SOCIAL_UNLINKED';
+function defined(name) {
+  return {
+    type: DEFINED,
+    payload: name
+  };
+}
+function log_in(name) {
+  return {
+    type: LOG_IN,
+    payload: name
+  };
+}
+function try_log_in(adapter, name, password) {
+  return function (dispatch) {
+    dispatch({
+      type: TRY_LOG_IN,
+      payload: {name, password, provider: 'local'}
+    });
+    return adapter.log_in(name, password)
+      .catch((err) => {
+        typeof $p === 'object' && $p.record_log(err);
+      });
+  };
+}
+function log_out(adapter) {
+  return function (dispatch, getState) {
+    function disp_log_out() {
+      dispatch({
+        type: LOG_OUT,
+        payload: {name: getState().meta.user.name}
+      });
+    }    if(!adapter) {
+      disp_log_out();
+    }
+    else {
+      adapter.log_out()
+        .then(() => {
+          const {superlogin} = $p;
+          superlogin && superlogin.authenticated() && superlogin.logout();
+        });
+    }
+  };
+}
+function log_error(err) {
+  const msg = typeof $p === 'object' ? $p.msg.login : {};
+  let text = msg.error;
+  if(!err.message || err.message.match(/(time|network)/i)){
+    text = msg.network;
+  }
+  else if(err.message.match('suffix')){
+    text = msg.suffix;
+  }
+  else if(err.message.match('empty')){
+    text = msg.empty;
+  }
+  else if(err.message.match('logout')){
+    text = msg.need_logout;
+  }
+  else if(err.message.match('custom') && err.text){
+    text = err.text;
+  }
+  return {
+    type: LOG_ERROR,
+    payload: text
+  };
+}
+function reset_user(state, logged_out) {
+  const user = Object.assign({}, state.user);
+  user.logged_in = false;
+  user.has_login = false;
+  user.try_log_in = false;
+  user.stop_log_in = false;
+  user.log_error = '';
+  if(logged_out) {
+    user.logged_out = true;
+  }
+  return Object.assign({}, state, {user});
 }
 
-function _pouch_data_loaded(page) {
-	return {
-		type: POUCH_DATA_LOADED,
-		payload: page
-	};
+const ADD = 'OBJ_ADD';
+const ADD_ROW = 'OBJ_ADD_ROW';
+const DEL_ROW = 'OBJ_DEL_ROW';
+const EDIT = 'OBJ_EDIT';
+const REVERT = 'OBJ_REVERT';
+const SAVE = 'OBJ_SAVE';
+const CHANGE = 'OBJ_CHANGE';
+const VALUE_CHANGE = 'OBJ_VALUE_CHANGE';
+function add(_mgr) {
+  const _obj = _mgr.create();
+  return {
+    type: ADD,
+    payload: {class_name: _mgr.class_name, ref: _obj.ref}
+  };
+}
+function add_row(class_name, ref, tabular, proto) {
+  return {
+    type: ADD_ROW,
+    payload: {
+      class_name: class_name,
+      ref: ref,
+      tabular: tabular,
+      proto: proto
+    }
+  };
+}
+function del_row(class_name, ref, tabular, index) {
+  return () => Promise.resolve();
+}
+function edit(class_name, ref, frm) {
+  return {
+    type: EDIT,
+    payload: {
+      class_name: class_name,
+      ref: ref,
+      frm: frm
+    }
+  };
+}
+function revert(class_name, ref) {
+  return (dispatch, getState) => {
+    return new Promise((resolve) => {
+      setTimeout(() => {
+        dispatch(dispatch({
+          type: REVERT,
+          payload: {
+            class_name: class_name,
+            ref: ref
+          }
+        }));
+        resolve();
+      }, 200);
+    });
+  };
+}
+function save(class_name, ref, post, mark_deleted) {
+  return (dispatch, getState) => {
+    let _obj;
+    if(typeof class_name == 'object') {
+      _obj = class_name;
+      class_name = _obj._manager.class_name;
+      ref = _obj.ref;
+      if(mark_deleted) {
+        _obj._obj._deleted = true;
+      }
+      _obj.save(post)
+        .then(
+          () => {
+            dispatch({
+              type: SAVE,
+              payload: {
+                class_name: class_name,
+                ref: ref,
+                post: post,
+                mark_deleted: mark_deleted
+              }
+            });
+          }
+        );
+    }
+  };
+}
+function post(class_name, ref) {
+  return save(class_name, ref, true);
+}
+function unpost(class_name, ref) {
+  return save(class_name, ref, false);
+}
+function mark_deleted(class_name, ref) {
+  return save(class_name, ref, undefined, true);
+}
+function unmark_deleted(class_name, ref) {
+  return save(class_name, ref, undefined, false);
+}
+function change(class_name, ref) {
+  return {
+    type: CHANGE,
+    payload: {
+      class_name: class_name,
+      ref: ref
+    }
+  };
+}
+function value_change(class_name, ref) {
+  return (dispatch, getState) => {
+    return new Promise((resolve) => {
+      setTimeout(() => {
+        dispatch(dispatch({
+          type: VALUE_CHANGE,
+          payload: {
+            class_name: class_name,
+            ref: ref
+          }
+        }));
+        resolve();
+      }, 200);
+    });
+  };
 }
 
-var sync_data_indicator;
-function _pouch_sync_data(dbid, change) {
-
-	// Thunk middleware знает, как обращаться с функциями.
-	// Он передает метод действия в качестве аргумента функции,
-	// т.о, это позволяет отправить действие самостоятельно.
-
-	return function (dispatch) {
-
-		// First dispatch: the app state is updated to inform
-		// that the API call is starting.
-
-		dispatch({
-			type: POUCH_SYNC_DATA,
-			payload: {
-				dbid: dbid,
-				change: change
-			}
-		});
-
-		if (sync_data_indicator) {
-			clearTimeout(sync_data_indicator);
-		}
-
-		sync_data_indicator = setTimeout(function () {
-
-			sync_data_indicator = 0;
-
-			dispatch({
-				type: POUCH_SYNC_DATA,
-				payload: false
-			});
-		}, 3000);
-	};
+const DATA_PAGE = 'POUCH_DATA_PAGE';
+const LOAD_START = 'POUCH_LOAD_START';
+const DATA_LOADED = 'POUCH_DATA_LOADED';
+const DATA_ERROR = 'POUCH_DATA_ERROR';
+const NO_DATA = 'POUCH_NO_DATA';
+const AUTOLOGIN = 'POUCH_AUTOLOGIN';
+const SYNC_ERROR = 'POUCH_SYNC_ERROR';
+const SYNC_DATA = 'POUCH_SYNC_DATA';
+const SYNC_PAUSED = 'POUCH_SYNC_PAUSED';
+const SYNC_RESUMED = 'POUCH_SYNC_RESUMED';
+const SYNC_DENIED = 'POUCH_SYNC_DENIED';
+let sync_data_indicator;
+function data_loaded(page) {
+  return function (dispatch, getState) {
+    dispatch({
+      type: DATA_LOADED,
+      payload: page
+    });
+    if(typeof page === 'object' && typeof $p === 'object') {
+      const {meta: {user}} = getState();
+      if(user.has_login) {
+        const {job_prm, wsql, adapters, superlogin, aes} = $p;
+        let name = wsql.get_user_param('user_name');
+        let password = wsql.get_user_param('user_pwd');
+        if(!name &&
+          job_prm.zone_demo == wsql.get_user_param('zone') &&
+          job_prm.guests.length) {
+          name = job_prm.guests[0].name;
+        }
+        if(name) {
+          dispatch(defined(name));
+        }
+        if(!user.logged_in && !user.try_log_in && !user.stop_log_in) {
+          if((superlogin && superlogin.authenticated()) || (name && password && wsql.get_user_param('enable_save_pwd'))) {
+            return dispatch(try_log_in(adapters.pouch, name, aes.Ctr.decrypt(password)));
+          }
+          if(name && job_prm.zone_demo == wsql.get_user_param('zone')) {
+            dispatch(try_log_in(adapters.pouch, name, aes.Ctr.decrypt(job_prm.guests[0].password)));
+          }
+        }
+      }
+    }
+  };
+}
+function sync_data(dbid, change) {
+  return function (dispatch, getState) {
+    dispatch({
+      type: SYNC_DATA,
+      payload: {
+        dbid: dbid,
+        change: change
+      }
+    });
+    if(sync_data_indicator) {
+      clearTimeout(sync_data_indicator);
+    }
+    sync_data_indicator = setTimeout(function () {
+      sync_data_indicator = 0;
+      dispatch({
+        type: SYNC_DATA,
+        payload: false
+      });
+    }, 1200);
+  };
+}
+function data_page(page) {
+  return {
+    type: DATA_PAGE,
+    payload: page
+  };
+}
+function load_start(page) {
+  return {
+    type: LOAD_START,
+    payload: page
+  };
+}
+function autologin() {
+  return {
+    type: AUTOLOGIN,
+    payload: true
+  };
+}
+function sync_error(dbid, err) {
+  return {
+    type: SYNC_ERROR,
+    payload: {dbid, err}
+  };
+}
+function sync_paused(dbid, info) {
+  return {
+    type: info ? SYNC_PAUSED : SYNC_RESUMED,
+    payload: {dbid, info}
+  };
+}
+function sync_resumed(dbid, info) {
+  return {
+    type: SYNC_RESUMED,
+    payload: {dbid, info}
+  };
+}
+function sync_denied(dbid, info) {
+  return {
+    type: SYNC_DENIED,
+    payload: {dbid, info}
+  };
+}
+function data_error(dbid, err) {
+  return {
+    type: DATA_ERROR,
+    payload: {dbid, err}
+  };
+}
+function no_data(dbid, err) {
+  return {
+    type: NO_DATA,
+    payload: {dbid, err}
+  };
 }
 
-function _pouch_data_page(page) {
-	return {
-		type: POUCH_DATA_PAGE,
-		payload: page
-	};
+const META_LOADED = 'META_LOADED';
+const PRM_CHANGE = 'PRM_CHANGE';
+const OFFLINE = 'OFFLINE';
+const SECOND_INSTANCE = 'SECOND_INSTANCE';
+function meta_loaded({version}) {
+  return {
+    type: META_LOADED,
+    payload: version,
+  };
+}
+function prm_change(name, value) {
+  return {
+    type: PRM_CHANGE,
+    payload: {name, value},
+  };
+}
+function offline(state) {
+  return {
+    type: OFFLINE,
+    payload: state,
+  };
+}
+function second_instance() {
+  return {
+    type: SECOND_INSTANCE,
+    payload: true,
+  };
 }
 
-function _pouch_load_start(page) {
-	return {
-		type: POUCH_LOAD_START,
-		payload: page
-	};
-}
-
-function _pouch_sync_start() {
-	return { type: POUCH_SYNC_START };
-}
-
-function _pouch_sync_error(dbid, err) {
-	return {
-		type: POUCH_SYNC_ERROR,
-		payload: {
-			dbid: dbid,
-			err: err
-		}
-	};
-}
-
-function _pouch_data_error(dbid, err) {
-	return {
-		type: POUCH_DATA_ERROR,
-		payload: {
-			dbid: dbid,
-			err: err
-		}
-	};
-}
-
-function _pouch_no_data(dbid, err) {
-	return {
-		type: POUCH_NO_DATA,
-		payload: {
-			dbid: dbid,
-			err: err
-		}
-	};
-}
-
-function user_defined(name) {
-	return {
-		type: USER_DEFINED,
-		payload: name
-	};
-}
-
-function _user_log_in(name) {
-	return {
-		type: USER_LOG_IN,
-		payload: name
-	};
-}
-
-function user_try_log_in(adapter, name, password) {
-
-	// Thunk middleware знает, как обращаться с функциями.
-	// Он передает метод действия в качестве аргумента функции,
-	// т.о, это позволяет отправить действие самостоятельно.
-
-	return function (dispatch) {
-
-		// First dispatch: the app state is updated to inform
-		// that the API call is starting.
-
-		dispatch({
-			type: USER_TRY_LOG_IN,
-			payload: { name: name, password: password }
-		});
-
-		// The function called by the thunk middleware can return a value,
-		// that is passed on as the return value of the dispatch method.
-
-		// In this case, we return a promise to wait for.
-		// This is not required by thunk middleware, but it is convenient for us.
-
-		return adapter.log_in(name, password);
-		// .then(dispatch(user_log_in(name)))
-
-		// In a real world app, you also want to
-		// catch any error in the network call.
-	};
-}
-
-function _user_log_out() {
-	return {
-		type: USER_LOG_OUT
-	};
-}
-
-function obj_add(class_name) {
-	return {
-		type: OBJ_ADD,
-		payload: { class_name: class_name }
-	};
-}
-
-function obj_add_row(class_name, ref, tabular) {
-	return {
-		type: OBJ_ADD_ROW,
-		payload: {
-			class_name: class_name,
-			ref: ref,
-			tabular: tabular
-		}
-	};
-}
-
-function obj_edit(class_name, ref, frm) {
-	return {
-		type: OBJ_EDIT,
-		payload: {
-			class_name: class_name,
-			ref: ref,
-			frm: frm
-		}
-	};
-}
-
-var actions = (_actions = {}, _defineProperty(_actions, META_LOADED, meta_loaded), _defineProperty(_actions, POUCH_DATA_LOADED, _pouch_data_loaded), _defineProperty(_actions, POUCH_DATA_PAGE, _pouch_data_page), _defineProperty(_actions, POUCH_DATA_ERROR, _pouch_data_error), _defineProperty(_actions, POUCH_LOAD_START, _pouch_load_start), _defineProperty(_actions, POUCH_NO_DATA, _pouch_no_data), _defineProperty(_actions, USER_TRY_LOG_IN, user_try_log_in), _defineProperty(_actions, USER_LOG_IN, _user_log_in), _defineProperty(_actions, USER_DEFINED, user_defined), _defineProperty(_actions, USER_LOG_OUT, _user_log_out), _actions);
-
-/**
- * Action Handlers - обработчики событий - вызываются из корневого редюсера
- */
-var ACTION_HANDLERS = exports.ACTION_HANDLERS = (_ACTION_HANDLERS = {}, _defineProperty(_ACTION_HANDLERS, META_LOADED, function (state, action) {
-	return Object.assign({}, state, { meta_loaded: true });
-}), _defineProperty(_ACTION_HANDLERS, POUCH_DATA_LOADED, function (state, action) {
-	return Object.assign({}, state, { data_loaded: true, fetch_local: false });
-}), _defineProperty(_ACTION_HANDLERS, POUCH_DATA_PAGE, function (state, action) {
-	return Object.assign({}, state, { page: action.payload });
-}), _defineProperty(_ACTION_HANDLERS, POUCH_DATA_ERROR, function (state, action) {
-	return Object.assign({}, state, { err: action.payload, fetch_local: false });
-}), _defineProperty(_ACTION_HANDLERS, POUCH_LOAD_START, function (state, action) {
-	return Object.assign({}, state, { data_empty: false, fetch_local: true });
-}), _defineProperty(_ACTION_HANDLERS, POUCH_NO_DATA, function (state, action) {
-	return Object.assign({}, state, { data_empty: true, fetch_local: false });
-}), _defineProperty(_ACTION_HANDLERS, POUCH_SYNC_START, function (state, action) {
-	return Object.assign({}, state, { sync_started: true });
-}), _defineProperty(_ACTION_HANDLERS, POUCH_SYNC_DATA, function (state, action) {
-	return Object.assign({}, state, { fetch_remote: action.payload ? true : false });
-}), _defineProperty(_ACTION_HANDLERS, USER_DEFINED, function (state, action) {
-	return Object.assign({}, state, { user: {
-			name: action.payload,
-			logged_in: state.user.logged_in
-		} });
-}), _defineProperty(_ACTION_HANDLERS, USER_LOG_IN, function (state, action) {
-	return Object.assign({}, state, { user: {
-			name: action.payload,
-			logged_in: true
-		} });
-}), _defineProperty(_ACTION_HANDLERS, USER_TRY_LOG_IN, function (state, action) {
-	return Object.assign({}, state, { user: {
-			name: action.payload.name,
-			logged_in: state.user.logged_in
-		} });
-}), _defineProperty(_ACTION_HANDLERS, USER_LOG_OUT, function (state, action) {
-	return Object.assign({}, state, {
-		user: {
-			name: state.user.name,
-			logged_in: false
-		},
-		sync_started: false
-	});
-}), _ACTION_HANDLERS);
-
-/**
- * Reducer
- */
-var initialState = {
-	meta_loaded: false,
-	data_loaded: false,
-	data_empty: true,
-	sync_started: false,
-	fetch_local: false,
-	fetch_remote: false,
-	user: {
-		name: "",
-		logged_in: false
-	}
+var actions_meta = {
+  types: {
+    [TRY_LOG_IN]: TRY_LOG_IN,
+    [LOG_IN]: LOG_IN,
+    [DEFINED]: DEFINED,
+    [LOG_OUT]: LOG_OUT,
+    [LOG_ERROR]: LOG_ERROR,
+    [SOCIAL_TRY_LINK]: SOCIAL_TRY_LINK,
+    [SOCIAL_LINKED]: SOCIAL_LINKED,
+    [SOCIAL_UNLINKED]: SOCIAL_UNLINKED,
+    [DATA_LOADED]: DATA_LOADED,
+    [DATA_PAGE]: DATA_PAGE,
+    [DATA_ERROR]: DATA_ERROR,
+    [LOAD_START]: LOAD_START,
+    [NO_DATA]: NO_DATA,
+    [SYNC_DATA]: SYNC_DATA,
+    [SYNC_ERROR]: SYNC_ERROR,
+    [SYNC_PAUSED]: SYNC_PAUSED,
+    [SYNC_RESUMED]: SYNC_RESUMED,
+  },
+  [META_LOADED]: meta_loaded,
+  [PRM_CHANGE]: prm_change,
+  [TRY_LOG_IN]: try_log_in,
+  [LOG_IN]: log_in,
+  [DEFINED]: defined,
+  [LOG_OUT]: log_out,
+  [LOG_ERROR]: log_error,
+  [DATA_LOADED]: data_loaded,
+  [DATA_PAGE]: data_page,
+  [DATA_ERROR]: data_error,
+  [LOAD_START]: load_start,
+  [NO_DATA]: no_data,
+  [SYNC_DATA]: sync_data,
+  [ADD]: add,
+  [ADD_ROW]: add_row,
+  [DEL_ROW]: del_row,
+  [EDIT]: edit,
+  [REVERT]: revert,
+  [SAVE]: save,
+  [CHANGE]: change,
+  [VALUE_CHANGE]: value_change,
+  obj_post: post,
+  obj_unpost: unpost,
+  obj_mark_deleted: mark_deleted,
+  obj_unmark_deleted: unmark_deleted,
 };
-function rx_reducer() {
-	var state = arguments.length <= 0 || arguments[0] === undefined ? initialState : arguments[0];
-	var action = arguments[1];
 
-
-	var handler = ACTION_HANDLERS[action.type];
-
-	if (handler) {
-		console.log(action);
-		return handler(state, action);
-	} else return state;
-}
-
-/**
- * Подключает диспетчеризацию событий redux к pouchdb
- */
-function rx_events(store) {
-
-	this.adapters.pouch.on({
-
-		user_log_in: function user_log_in(name) {
-			store.dispatch(_user_log_in(name));
-		},
-
-		user_log_out: function user_log_out() {
-			store.dispatch(_user_log_out());
-		},
-
-		pouch_data_page: function pouch_data_page(page) {
-			store.dispatch(_pouch_data_page(page));
-		},
-
-		pouch_data_loaded: function pouch_data_loaded(page) {
-			store.dispatch(_pouch_data_loaded(page));
-		},
-
-		pouch_data_error: function pouch_data_error(dbid, err) {
-			store.dispatch(_pouch_data_error(dbid, err));
-		},
-
-		pouch_load_start: function pouch_load_start(page) {
-			store.dispatch(_pouch_load_start(page));
-		},
-
-		pouch_no_data: function pouch_no_data(dbid, err) {
-			store.dispatch(_pouch_no_data(dbid, err));
-		},
-
-		pouch_sync_start: function pouch_sync_start() {
-			store.dispatch(_pouch_sync_start());
-		},
-
-		pouch_sync_data: function pouch_sync_data(dbid, change) {
-			store.dispatch(_pouch_sync_data(dbid, change));
-		},
-
-		pouch_sync_error: function pouch_sync_error(dbid, err) {
-			store.dispatch(_pouch_sync_error(dbid, err));
-		}
-	});
-}
-
-/**
- * Экспортируем объект-плагин для модификации metadata.js
- */
-var plugin = {
-	proto: function proto(constructor) {
-
-		Object.defineProperties(constructor.prototype, {
-
-			rx_actions: {
-				value: actions
-			},
-
-			rx_reducer: {
-				value: rx_reducer
-			},
-
-			rx_events: {
-				value: rx_events
-			}
-		});
-	},
-	constructor: function constructor() {}
+var handlers_meta = {
+  [META_LOADED]: (state, action) => {
+    return Object.assign({}, state, {meta_loaded: true});
+  },
+  [PRM_CHANGE]: (state, action) => {
+    const {name, value} = action.payload;
+    if(typeof $p !== 'object') {
+      return;
+    }
+    const {wsql} = $p;
+    if(Array.isArray(name)) {
+      for (const {prm, value} of name) {
+        wsql.set_user_param(prm, value);
+      }
+    }
+    else if(typeof name == 'object') {
+      for (const prm in name) {
+        wsql.set_user_param(prm, name[prm]);
+      }
+    }
+    else if(wsql.get_user_param(name) == value) {
+      return state;
+    }
+    wsql.set_user_param(name, value);
+    return Object.assign({}, state);
+  },
+  [OFFLINE]: (state, action) => Object.assign({}, state, {offline: action.payload}),
+  [SECOND_INSTANCE]: (state, action) => Object.assign({}, state, {second_instance: true}),
+  [DATA_LOADED]: (state, action) => {
+    const payload = {data_loaded: true, fetch: false};
+    if(action.payload == 'doc_ram') {
+      payload.doc_ram_loaded = true;
+    }
+    else if(action.payload == 'complete') {
+      payload.complete_loaded = true;
+    }
+    return Object.assign({}, state, payload);
+  },
+  [DATA_PAGE]: (state, action) => Object.assign({}, state, {page: action.payload}),
+  [DATA_ERROR]: (state, action) => Object.assign({}, state, {err: action.payload, fetch: false}),
+  [LOAD_START]: (state, action) => Object.assign({}, state, {data_empty: false, fetch: true}),
+  [AUTOLOGIN]: (state, action) => Object.assign({}, state, {autologin: true}),
+  [NO_DATA]: (state, action) => Object.assign({}, state, {data_empty: true, first_run: true, fetch: false}),
+  [SYNC_DATA]: (state, action) => Object.assign({}, state, {fetch: !!action.payload}),
+  [SYNC_PAUSED]: (state, action) => Object.assign({}, state, {sync_started: false}),
+  [SYNC_RESUMED]: (state, action) => Object.assign({}, state, {sync_started: true}),
+  [SYNC_ERROR]: (state, action) => {
+    const {err} = action.payload;
+    if(err && err.error == 'forbidden') {
+      return reset_user(state);
+    }
+    else if(err && err.data_size) {
+      return Object.assign({}, state, {sync_started: false, data_size: err.data_size});
+    }
+    return state;
+  },
+  [DEFINED]: (state, action) => {
+    const user = Object.assign({}, state.user);
+    user.name = action.payload;
+    return Object.assign({}, state, {user});
+  },
+  [LOG_IN]: (state, action) => {
+    const user = Object.assign({}, state.user, {
+      logged_in: action.payload ? true : false,
+      stop_log_in: action.payload ? false : true,
+      try_log_in: false,
+      log_error: ''
+    });
+    return Object.assign({}, state, {user});
+  },
+  [TRY_LOG_IN]: (state, action) => {
+    const user = Object.assign({}, state.user, {
+      try_log_in: true,
+      stop_log_in: false,
+      log_error: ''
+    });
+    return Object.assign({}, state, {user});
+  },
+  [LOG_OUT]: (state, action) => {
+    return reset_user(state, true);
+  },
+  [LOG_ERROR]: (state, action) => {
+    const reseted = reset_user(state);
+    reseted.user.log_error = action.payload;
+    return reseted;
+  },
+  [ADD]: (state, action) => state,
+  [CHANGE]: (state, action) => Object.assign({}, state, {obj_change: action.payload}),
 };
-exports.default = plugin;
+
+function metaInitialState() {
+  let user_name = "",
+    has_login = false,
+    couch_direct = true,
+    second_instance = false,
+    fake = typeof $p !== 'object';
+  if(!fake) {
+    const {wsql, job_prm, superlogin} = $p;
+    user_name = wsql.get_user_param('user_name');
+    couch_direct = wsql.get_user_param('couch_direct', 'boolean');
+    if(wsql.get_user_param('zone') == job_prm.zone_demo && !user_name && job_prm.guests.length) {
+      wsql.set_user_param('enable_save_pwd', true);
+      wsql.set_user_param('user_name', user_name = job_prm.guests[0].username);
+      wsql.set_user_param('user_pwd', job_prm.guests[0].password);
+      has_login = true;
+    }
+    else if(wsql.get_user_param('enable_save_pwd', 'boolean') && user_name && wsql.get_user_param('user_pwd')) {
+      has_login = true;
+    }
+    else if(superlogin && user_name) {
+      has_login = true;
+    }
+    else {
+      has_login = false;
+    }
+    second_instance = second_instance || job_prm.second_instance;
+  }
+  return {
+    meta_loaded: false,
+    data_loaded: false,
+    doc_ram_loaded: false,
+    complete_loaded: false,
+    first_run: false,
+    data_empty: undefined,
+    sync_started: false,
+    fetch: false,
+    offline: typeof navigator != 'undefined' && !navigator.onLine,
+    path_log_in: false,
+    couch_direct,
+    second_instance,
+    fake,
+    user: {
+      name: user_name,
+      has_login,
+      try_log_in: false,
+      logged_in: false,
+      log_error: '',
+    }
+  };
+}function metaReducer(state, action) {
+  if(!state) {
+    return metaInitialState();
+  }
+  else if(state.fake) {
+    state = metaInitialState();
+  }
+  const handler = handlers_meta[action.type];
+  return handler ? handler(state, action) : state;
+}
+
+let attached;
+function metaMiddleware({adapters, md}) {
+  return ({dispatch}) => {
+    return next => action => {
+      if(!attached) {
+        attached = true;
+        adapters.pouch.on({
+          user_log_in: (name) => dispatch(log_in(name)),
+          user_log_out: () => dispatch(log_out()),
+          user_log_fault: (err) => dispatch(log_error(err)),
+          user_log_stop: () => dispatch(log_in()),
+          pouch_data_page: (page) => dispatch(data_page(page)),
+          pouch_data_loaded: (page) => dispatch(data_loaded(page)),
+          pouch_doc_ram_loaded: () => dispatch(data_loaded('doc_ram')),
+          pouch_complete_loaded: () => dispatch(data_loaded('complete')),
+          pouch_data_error: (dbid, err) => dispatch(data_error(dbid, err)),
+          pouch_load_start: (page) => dispatch(load_start(page)),
+          pouch_autologin: (page) => dispatch(autologin()),
+          pouch_no_data: (dbid, err) => dispatch(no_data(dbid, err)),
+          pouch_sync_data: (dbid, change) => dispatch(sync_data(dbid, change)),
+          pouch_sync_error: (dbid, err) => dispatch(sync_error(dbid, err)),
+          pouch_sync_paused: (dbid, info) => dispatch(sync_paused(dbid, info)),
+          pouch_sync_resumed: (dbid, info) => dispatch(sync_resumed(dbid, info)),
+          pouch_sync_denied: (dbid, info) => dispatch(sync_denied(dbid, info)),
+        });
+        md.on({
+          obj_loaded: (_obj) => {
+            dispatch(change(_obj._manager.class_name, _obj.ref));
+          },
+          second_instance: (_obj) => {
+            dispatch(second_instance());
+          },
+          setting_changed: () => {
+          },
+        });
+        if(typeof window != undefined && window.addEventListener){
+          window.addEventListener('online', () => dispatch(offline(false)), false);
+          window.addEventListener('offline', () => dispatch(offline(true)), false);
+        }
+      }
+      return next(action);
+    };
+  };
+}
+
+const IFACE_STATE = 'IFACE_STATE';
+function iface_state(state) {
+  return {
+    type: IFACE_STATE,
+    payload: state,
+  };
+}
+var actions_iface = {
+  [IFACE_STATE]: iface_state,
+};
+
+var handlers_iface = {
+  [IFACE_STATE]: (state, action) => {
+    const {component, name, value} = action.payload;
+    const area = component || 'common';
+    const previous = Object.assign({}, state[area]);
+    if(value == 'invert') {
+      previous[name] = !previous[name];
+    }
+    else {
+      previous[name] = value;
+    }
+    return Object.assign({}, state, {[area]: previous});
+  },
+};
+
+const defaultState = {
+  'common': {
+    title: 'Заказ дилера',
+  },
+  CalcOrderList: {
+    state_filter: '',
+  },
+  NavDrawer: {
+    open: false,
+  },
+  NavList: {
+    orders: true,
+  },
+  LogDrawer: {
+    open: false,
+  },
+};
+function getIfaceReducer(initialState) {
+  return function ifaceReducer(state, action) {
+    if(!state) {
+      return typeof initialState == 'function' ? initialState() : initialState || defaultState;
+    }
+    let handler = handlers_iface[action.type];
+    return handler ? handler(state, action) : state;
+  };
+}
+
+let attached$1;
+function ifaceMiddleware() {
+  return (store) => {
+    const {dispatch} = store;
+    return next => action => {
+      if(!attached$1) {
+        attached$1 = true;
+        if(!attached$1) {
+          dispatch(iface_state(''));
+        }
+      }
+      return next(action);
+    };
+  };
+}
+
+function mapDispatchToProps(dispatch) {
+  return {
+    handleIfaceState(state) {
+      return dispatch(iface_state(state));
+    },
+    handleNavigate(path) {
+      return dispatch(reactRouterRedux.push(path));
+    },
+  };
+}
+
+function disconnect(iface, area) {
+  return () => {
+  };
+}
+function mapStateToProps(Component, area) {
+  if(!area) {
+    area = Component.name;
+  }
+  return ({iface}) => Object.assign({disconnect: disconnect(iface, area)}, iface.common, iface[area]);
+}
+var withIface = (Component) => reactRedux.connect(mapStateToProps(Component), mapDispatchToProps)(Component);
+
+function mapStateToProps$1({meta}) {
+  return typeof $p === 'object' ?
+    Object.assign({}, meta, {
+      _obj: $p.current_user,
+      _mgr: $p.cat.users,
+      _acl: 'e',
+    }) : meta;
+}function mapDispatchToProps$1(dispatch) {
+  return {
+    handleLogin(login, password) {
+      const {adapters, wsql, job_prm, aes, cat, superlogin} = $p;
+      if(!login && !password) {
+        if(wsql.get_user_param('user_name') && wsql.get_user_param('user_pwd')) {
+          login = wsql.get_user_param('user_name');
+          password = aes.Ctr.decrypt(wsql.get_user_param('user_pwd'));
+        }
+        else if(wsql.get_user_param('zone') == job_prm.zone_demo) {
+          login = job_prm.guests[0].username;
+          password = aes.Ctr.decrypt(job_prm.guests[0].password);
+        }
+        else if(superlogin) {
+          if(superlogin.authenticated()){
+            login = superlogin.getSession().user_id;
+          }
+          else {
+            return dispatch(log_out(adapters.pouch));
+          }
+        }
+        else {
+          return dispatch(log_out(adapters.pouch));
+        }
+      }
+      return dispatch(try_log_in(adapters.pouch, login, password));
+    },
+    handleLogOut() {
+      return dispatch(log_out($p.adapters.pouch));
+    }
+  };
+}var withMeta = reactRedux.connect(mapStateToProps$1, mapDispatchToProps$1);
+
+const mapStateToProps$2 = ({iface}, {location}) => {
+  return Object.assign({path_log_in: !!location.pathname.match(/\/(login|about)$/)}, iface.common);
+};
+var withNavigateAndMeta = (View) => {
+  const withNavigate = reactRedux.connect(mapStateToProps$2, mapDispatchToProps)(reactRouter.withRouter(View));
+  return withMeta(withNavigate);
+};
+
+var withIfaceAndMeta = (Component) => {
+  return reactRedux.connect(
+    (state) => Object.assign({}, mapStateToProps$1(state), mapStateToProps(Component)(state)),
+    (dispatch) => Object.assign({}, mapDispatchToProps$1(dispatch), mapDispatchToProps(dispatch)))(Component);
+};
+
+const mapDispatchToProps$2 = (dispatch) => {
+  const handlers = {
+    handleNavigate(path) {
+      return dispatch(reactRouterRedux.push(path));
+    },
+    handleIfaceState(state) {
+      return dispatch(iface_state(state));
+    },
+    handleAdd(_mgr) {
+      return dispatch(reactRouterRedux.push(`/${_mgr.class_name}/${$p.utils.generate_guid()}${_mgr.hasOwnProperty('_cachable') ? '?area=' + _mgr._cachable : ''}`));
+    },
+    handleAddRow() {
+    },
+    handleDelRow() {
+    },
+    handleEdit({ref, _mgr}) {
+      return dispatch(reactRouterRedux.push(`/${_mgr.class_name}/${ref}`));
+    },
+    handlePost() {
+    },
+    handleUnPost() {
+    },
+    handleMarkDeleted({ref, _mgr}) {
+      const {current_user} = $p;
+      if(current_user && current_user.get_acl(_mgr.class_name).includes('d')) {
+        return _mgr.get(ref, 'promise')
+          .then((o) => {
+            return !o._deleted && o.mark_deleted(true);
+          })
+      }
+    },
+    handleUnMarkDeleted() {
+    },
+    handleSave() {
+    },
+    handleRevert() {
+    },
+    handlePrint() {
+    },
+    handleAttachment() {
+    }
+  };
+  return Object.assign({handlers}, handlers);
+};
+var withObj = reactRedux.connect(null, mapDispatchToProps$2);
+
+const mapStateToProps$3 = () => {
+  if(typeof $p !== 'object'){
+    return;
+  }
+  const {wsql, superlogin} = $p;
+  const res = {use_superlogin: !!superlogin};
+  for (const name of [
+    'zone',
+    'couch_path',
+    'superlogin_path',
+    ['couch_direct', 'boolean'],
+    ['enable_save_pwd', 'boolean'],
+    ['ram_indexer', 'boolean'],
+    'user_name',
+    'user_pwd'
+  ]) {
+    if(Array.isArray(name)) {
+      res[name[0]] = wsql.get_user_param(name[0], name[1]);
+    }
+    else {
+      res[name] = wsql.get_user_param(name);
+    }
+  }
+  return res;
+};
+const mapDispatchToProps$3 = (dispatch) => {
+  return {
+    handleSetPrm(name, value) {
+      dispatch(prm_change(name, value));
+    },
+  };
+};
+var withPrm = reactRedux.connect(mapStateToProps$3, mapDispatchToProps$3);
+
+exports.metaActions = actions_meta;
+exports.metaReducer = metaReducer;
+exports.metaMiddleware = metaMiddleware;
+exports.ifaceActions = actions_iface;
+exports.ifaceReducer = getIfaceReducer;
+exports.ifaceMiddleware = ifaceMiddleware;
+exports.withIface = withIface;
+exports.withMeta = withMeta;
+exports.withNavigateAndMeta = withNavigateAndMeta;
+exports.withIfaceAndMeta = withIfaceAndMeta;
+exports.withObj = withObj;
+exports.withPrm = withPrm;
+exports.dispatchIface = mapDispatchToProps;
+//# sourceMappingURL=index.js.map

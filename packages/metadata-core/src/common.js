@@ -1,11 +1,21 @@
 /**
  * Глобальные переменные и общие методы фреймворка __metadata.js__ <i>Oknosoft data engine</i>
  *
- * &copy; Evgeniy Malyarov http://www.oknosoft.ru 2014-2016
+ * &copy; Evgeniy Malyarov http://www.oknosoft.ru 2014-2019
  *
  * Экспортирует глобальную переменную __$p__ типа {{#crossLink "MetaEngine"}}{{/crossLink}}
- * @module  common
+ * @module  metadata
  */
+
+import utils from './utils';
+import Aes from '../lib/aes';
+import JobPrm from './jobprm';
+import WSQL from './wsql';
+import Meta from './meta';
+import msg from './i18n.ru';
+import mngrs from './mngrcollections';
+import classes from './classes';
+
 
 /**
  * ### Metadata.js - проект с открытым кодом
@@ -30,141 +40,256 @@
  * @menuorder 00
  * @tooltip Контекст metadata.js
  */
-export default class MetaEngine{
+class MetaEngine {
 
-	constructor() {
+  constructor() {
 
-		// инициируем базовые свойства
-		Object.defineProperties(this, {
+    // дублируем ссылку на конструкторы в объекте
+    this.classes = classes;
 
-			version: {
-				value: "PACKAGE_VERSION",
-				writable: false
-			},
+    /**
+     * ### Адаптеры для PouchDB, 1С и т.д.
+     * @property adapters
+     * @type Object
+     * @final
+     */
+    this.adapters = {};
 
-			toString: { value: () => "Oknosoft data engine. v:" + this.version },
+    /**
+     * Aes для шифрования - дешифрования строк
+     *
+     * @property aes
+     * @type Aes
+     * @final
+     */
+    this.aes = new Aes('metadata.js');
+
+    /**
+     * ### Параметры работы программы
+     * @property job_prm
+     * @type JobPrm
+     * @final
+     */
+    this.job_prm = new JobPrm(this);
+
+    /**
+     * Интерфейс к данным в LocalStorage, AlaSQL и IndexedDB
+     * @property wsql
+     * @type WSQL
+     * @final
+     */
+    this.wsql = new WSQL(this);
+
+    /**
+     * ### Mетаданные конфигурации
+     * @property md
+     * @type Meta
+     * @static
+     */
+    this.md = new Meta(this);
+
+    // создаём конструкторы менеджеров данных
+    mngrs(this);
+
+    // дублируем метод record_log в utils
+    this.record_log = this.record_log.bind(this);
+
+    // начинаем следить за ошибками
+    if(typeof process !== 'undefined' && process.addEventListener) {
+      process.addEventListener('error', this.record_log, false);
+      //process.addEventListener('unhandledrejection', this.record_log, false);
+    }
+    else if(typeof window !== 'undefined' && window.addEventListener) {
+      window.addEventListener('error', this.record_log, false);
+      //window.addEventListener('unhandledRejection', this.record_log, false);
+    }
+
+    // при налчии расширений, выполняем их методы инициализации
+    MetaEngine._plugins.forEach((plugin) => plugin.call(this));
+    MetaEngine._plugins.length = 0;
 
 
-			/**
-			 * ### Адаптеры для PouchDB, 1С и т.д.
-			 * @property adapters
-			 * @type Object
-			 * @final
-			 */
-			adapters: {
-				value: {}
-			},
+  }
 
-			/**
-			 * ### Параметры работы программы
-			 * @property job_prm
-			 * @type JobPrm
-			 * @final
-			 */
-			job_prm: {value: new JobPrm()},
+  on(type, listener) {
+    this.md.on(type, listener);
+  }
 
-			/**
-			 * Интерфейс к данным в LocalStorage, AlaSQL и IndexedDB
-			 * @property wsql
-			 * @type WSQL
-			 * @final
-			 */
-			wsql: { value: new WSQL(this) },
+  off(type, listener) {
+    this.md.off(type, listener);
+  }
 
-			/**
-			 * Aes для шифрования - дешифрования данных
-			 *
-			 * @property aes
-			 * @type Aes
-			 * @final
-			 */
-			aes: { value: new Aes("metadata.js") },
+  get version() {
+    return 'PACKAGE_VERSION';
+  }
 
-			/**
-			 * ### Mетаданные конфигурации
-			 * @property md
-			 * @type Meta
-			 * @static
-			 */
-			md: { value: new Meta(this) }
+  toString() {
+    return 'Oknosoft data engine. v:' + this.version;
+  }
 
-		})
 
-		// создаём конструкторы менеджеров данных
-		mngrs(this);
+  /**
+   * ### Запись журнала регистрации
+   *
+   * @method record_log
+   * @param err
+   */
+  record_log(err, promise) {
+    this && this.ireg && this.ireg.log && this.ireg.log.record(err);
+    console && console.log(err);
+  }
 
-		// создаём конструкторы табличных частей
-		tabulars(this);
 
-		// при налчии расширений, выполняем их методы инициализации
-		if(MetaEngine._constructors && Array.isArray(MetaEngine._constructors)){
-			for(var i=0; i< MetaEngine._constructors.length; i++){
-				MetaEngine._constructors[i].call(this);
-			}
-		}
+  /**
+   * Вспомогательные методы
+   */
+  get utils() {
+    return utils;
+  }
 
-	}
+  /**
+   * i18n
+   */
+  get msg() {
+    return msg;
+  }
 
-	/**
-	 * ### Запись журнала регистрации
-	 *
-	 * @method record_log
-	 * @param err
-	 */
-	record_log(err) {
-		if(this.ireg && this.ireg.$log)
-			this.ireg.$log.record(err);
-		console.log(err);
-	}
+  /**
+   * ### Текущий пользователь
+   * Свойство определено после загрузки метаданных и входа впрограмму
+   * @property current_user
+   * @type CatUsers
+   * @final
+   */
+  get current_user() {
 
-	/**
-	 * Вспомогательные методы
-	 */
-	get utils(){return utils}
+    const {CatUsers, cat, superlogin, wsql} = this;
 
-	/**
-	 * i18n
-	 */
-	get msg(){return msg}
+    // заглушка "всё разрешено", если методы acl не переопределены внешним приложением
+    if (CatUsers && !CatUsers.prototype.hasOwnProperty('role_available')) {
 
-	/**
-	 * Конструкторы объектов данных
-	 */
-	get classes(){//noinspection JSUnresolvedVariable
-		return classes}
+      /**
+       * ### Роль доступна
+       *
+       * @param name {String}
+       * @returns {Boolean}
+       */
+      CatUsers.prototype.role_available = function (name) {
+        return this.acl_objs ? this.acl_objs._obj.some((row) => row.type == name) : true;
+      };
 
-	/**
-	 * ### Подключает расширения metadata
-	 * Принимает в качестве параметра объект с полями `proto` и `constructor` типа _function_
-	 * proto выполняется в момент подключения, constructor - после основного конструктора при создании объекта
-	 *
-	 * @param obj
-	 * @return {MetaEngine}
-	 */
-	static plugin(obj){
+      /**
+       * ### Права на класс данных
+       * @param class_name
+       * @return {string}
+       */
+      CatUsers.prototype.get_acl = function(class_name) {
+        const {_acl} = this._obj;
+        let res = 'rvuidepo';
+        if(Array.isArray(_acl)){
+          _acl.some((acl) => {
+            if(acl.hasOwnProperty(class_name)) {
+              res = acl[class_name];
+              return true;
+            }
+          });
+          return res;
+        }
+        else{
+          const acn = class_name.split('.');
+          return _acl && _acl[acn[0]] && _acl[acn[0]][acn[1]] ? _acl[acn[0]][acn[1]] : res;
+        }
+      };
 
-		if(typeof obj.proto == "function"){ // function style for plugins
-			obj.proto(MetaEngine)
-		}else if (typeof obj.proto == 'object'){
-			Object.keys(obj.proto).forEach(function (id) { // object style for plugins
-				MetaEngine.prototype[id] = obj.proto[id];
-			});
-		}
+      /**
+       * ### Идентификаторы доступных контрагентов
+       * Для пользователей с ограниченным доступом
+       *
+       * @returns {Array}
+       */
+      Object.defineProperty(CatUsers.prototype, 'partners_uids', {
+        get: function () {
+          const res = [];
+          this.acl_objs && this.acl_objs.forEach((row) => row.type === 'cat.partners' && row.acl_obj && res.push(row.acl_obj.ref));
+          return res;
+        },
+      });
+    }
 
-		if(obj.constructor){
+    let user_name, user;
 
-			if(typeof obj.constructor != "function"){
-				throw new Error('Invalid plugin: constructor must be a function');
-			}
+    if (superlogin) {
+      const session = superlogin.getSession();
+      user_name = session ? session.user_id : '';
+    }
 
-			if(!MetaEngine._constructors){
-				MetaEngine._constructors = [];
-			}
+    if (!user_name) {
+      user_name = wsql.get_user_param('user_name');
+    }
 
-			MetaEngine._constructors.push(obj.constructor);
-		}
+    if (cat && cat.users && user_name) {
+      user = cat.users.by_id(user_name);
+      if (!user || user.empty()) {
+        if (superlogin) {
+          // если superlogin, всю онформацию о пользователе получаем из sl_users
+          user = superlogin.create_user();
+        }
+        else {
+          cat.users.find_rows_remote({
+            _top: 1,
+            id: user_name,
+          });
+        }
+      }
+    }
 
-		return MetaEngine;
-	}
+    return user && !user.empty() ? user : null;
+  }
 
+  /**
+   * ### Подключает расширения metadata
+   * Принимает в качестве параметра объект с полями `proto` и `constructor` типа _function_
+   * proto выполняется в момент подключения, constructor - после основного конструктора при создании объекта
+   *
+   * @param obj
+   * @return {MetaEngine}
+   */
+  static plugin(obj) {
+
+    if (!obj) {
+      throw new TypeError('Invalid empty plugin');
+    }
+
+    if (obj.hasOwnProperty('proto')) {
+      if (typeof obj.proto == 'function') {         // function style for plugins
+        obj.proto(MetaEngine);
+      }
+      else if (typeof obj.proto == 'object') {     // object style for plugins
+        Object.keys(obj.proto).forEach((id) => MetaEngine.prototype[id] = obj.proto[id]);
+      }
+    }
+
+    if (obj.hasOwnProperty('constructor')) {
+      if (typeof obj.constructor != 'function') {
+        throw new TypeError('Invalid plugin: constructor must be a function');
+      }
+      MetaEngine._plugins.push(obj.constructor);
+    }
+
+    return MetaEngine;
+  }
 }
+
+/**
+ * Конструкторы объектов данных
+ */
+MetaEngine.classes = classes;
+
+/**
+ * Хранилище плагинов
+ * @type {Array}
+ * @private
+ */
+MetaEngine._plugins = [];
+
+export default MetaEngine;
